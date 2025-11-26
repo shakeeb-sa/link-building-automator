@@ -1916,3 +1916,126 @@ function createGatewayMenu() {
     }, 4000);
   }
 })();
+
+// ============================================================
+// 📨 THE EMAIL HUNTER v3 (Iframe & Plain Text Support)
+// ============================================================
+(function initEmailHunter() {
+  // 1. DOMAIN CHECK
+  // We allow this to run inside IFRAMES (window.self !== window.top)
+  // because that is where the email content actually lives.
+  const validDomains = ["fakemail.net", "temp-mail.org", "10minutemail.com", "emailondeck.com", "yopmail.com", "tempmail.plus", "aicrowd.com"]; // Added aicrowd for testing based on your screenshot
+  
+  // We check document.referrer too because inside an iframe, the hostname might be different (e.g. about:blank or a cdn)
+  // but the parent is the fake mail site.
+  const isTarget = validDomains.some(d => window.location.hostname.includes(d) || document.referrer.includes(d));
+  
+  if (!isTarget) return;
+
+  // 2. THE SCANNER
+  const scan = () => {
+    if (document.getElementById("llb-verifier-hud")) return;
+
+    // --- STRATEGY A: FIND CLICKABLE LINKS (<a> tags) ---
+    // Keywords based on your screenshots: "confirm", "verify", "click here", "password"
+    const keywords = ["confirm", "verify", "activate", "validate", "click here", "set your password", "login details", "recover"];
+    const links = Array.from(document.querySelectorAll("a"));
+    
+    for (let link of links) {
+      const text = (link.innerText || "").toLowerCase().trim();
+      const href = (link.href || "").toLowerCase();
+      
+      if (href.includes("unsubscribe") || href.startsWith("javascript") || href === "") continue;
+
+      // 1. Check Text Matching
+      const textMatch = keywords.some(kw => text.includes(kw));
+      
+      // 2. Check URL Matching (Token/Key detection for WordPress style links)
+      // Looks for: key=..., token=..., confirm=..., /verify/
+      const urlMatch = href.match(/key=|token=|code=|confirm|\/verify\/|action=rp/);
+
+      if (textMatch || urlMatch) {
+        // Highlight the button visually (Like in your AICrowd screenshot)
+        link.style.border = "4px solid #00b894";
+        link.style.boxShadow = "0 0 20px #00b894";
+        
+        showVerifierHUD("link", link.href, text || "Link");
+        return;
+      }
+    }
+
+    // --- STRATEGY B: FIND PLAIN TEXT URLs (The WordPress Screenshot Case) ---
+    // Sometimes the link is just text: "https://techremarkable.com/..."
+    const bodyText = document.body.innerText;
+    // Regex to find https links that contain "key", "token", or "login"
+    const urlRegex = /https?:\/\/[^\s]+?(?:key=|token=|login=|confirm=)[^\s]+/g;
+    const textLinks = bodyText.match(urlRegex);
+
+    if (textLinks && textLinks.length > 0) {
+      // We found a verification link written as plain text!
+      showVerifierHUD("link", textLinks[0], "Plain Text Link");
+      return;
+    }
+
+    // --- STRATEGY C: OTP CODES ---
+    // 4-8 digits, not years
+    const otpRegex = /\b(?!(?:19|20)\d{2})(?<!\d)(\d{4,8})(?!\d)\b/g;
+    const matches = bodyText.match(otpRegex);
+    if (matches && matches.length > 0) {
+       // Filter out port numbers or common false positives
+       const bestCode = matches.find(m => m !== "8080" && m !== "3000"); 
+       if (bestCode) {
+         navigator.clipboard.writeText(bestCode);
+         showVerifierHUD("otp", bestCode, "Code");
+       }
+    }
+  };
+
+  // Run repeatedly because email content loads slowly
+  setInterval(scan, 1500);
+
+  // 3. THE UI
+  function showVerifierHUD(type, value, label) {
+    // If we are in an iframe, we need to be careful with positioning.
+    // We'll put it at the top of the iframe.
+    
+    const hud = document.createElement("div");
+    hud.id = "llb-verifier-hud";
+    
+    let contentHtml = "";
+    if (type === "link") {
+      contentHtml = `
+        <div style="display:flex; flex-direction:column; gap:5px;">
+          <span style="font-size:10px; opacity:0.9; text-transform:uppercase;">${label} FOUND</span>
+          <a href="${value}" target="_blank" style="
+            background: #fff; color: #0984e3; text-decoration: none; padding: 6px 12px; 
+            border-radius: 4px; font-weight: bold; text-align: center; display: block; font-size:12px;
+          ">🚀 OPEN LINK</a>
+        </div>`;
+    } else {
+      contentHtml = `
+        <div style="display:flex; flex-direction:column; gap:5px;">
+          <span style="font-size:10px; opacity:0.9; text-transform:uppercase;">OTP COPIED</span>
+          <div style="background:#fff; color:#333; padding:4px 8px; font-weight:bold; border-radius:4px; text-align:center;">${value}</div>
+        </div>`;
+    }
+
+    hud.innerHTML = `
+      <div style="display:flex; align-items:center; gap:10px;">
+        <span style="font-size:18px;">⚡</span>
+        ${contentHtml}
+        <span id="llb-close" style="cursor:pointer; padding:5px;">&times;</span>
+      </div>
+    `;
+
+    Object.assign(hud.style, {
+      position: "fixed", top: "10px", right: "10px", zIndex: "2147483647",
+      background: "linear-gradient(135deg, #2d3436, #000000)", color: "white",
+      padding: "10px", borderRadius: "8px", boxShadow: "0 5px 15px rgba(0,0,0,0.3)",
+      fontFamily: "sans-serif", fontSize: "12px", maxWidth: "250px"
+    });
+
+    document.body.appendChild(hud);
+    document.getElementById("llb-close").onclick = () => hud.remove();
+  }
+})();

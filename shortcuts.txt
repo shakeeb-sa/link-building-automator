@@ -1,0 +1,18 @@
+Here is the list of all active shortcuts in your extension:
+
+**Left Click Shortcuts:**
+1.  **4x Click:** Fill All (Smart Fill + Checkboxes + Open File Upload)
+2.  **Ctrl + 4x Click:** Smart Dropdown Sequence Only
+3.  **Shift + 4x Click:** Force Fill Empty Inputs Only
+4.  **Ctrl + Shift + 4x Click:** Force Fill Empty Dropdowns Only
+5.  **Alt + 2x Click:** Open/Refresh Fakemail
+6.  **Shift + Alt + 2x Click:** Open Converter Tool
+
+**Right Click Shortcuts:**
+7.  **Ctrl + 2x Right Click:** Open Text & Link Menu (5 Fields)
+8.  **Alt + 2x Right Click:** Auto Submit / Publish
+
+**Keyboard Shortcuts:**
+9.  **Ctrl + Shift + 1:** Fill Profile 1
+10. **Ctrl + Shift + 2:** Fill Profile 2
+11. **Ctrl + Shift + L:** Trigger Auto Fill

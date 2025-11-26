@@ -1,0 +1,38 @@
+{
+  "manifest_version": 3,
+  "name": "⚡ Lightning LinkBuilder",
+  "version": "9.1",
+  "description": "The fastest form filler ever made for link builders & outreach pros",
+  "permissions": ["storage", "activeTab", "tabs"],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_end"
+    }
+  ],
+  "commands": {
+    "fill-profile-1": {
+      "suggested_key": { "default": "Ctrl+Shift+1" },
+      "description": "Fill with Profile 1"
+    },
+    "fill-profile-2": {
+      "suggested_key": { "default": "Ctrl+Shift+2" },
+      "description": "Fill with Profile 2"
+    },
+    "quad-fill": {
+      "suggested_key": { "default": "Ctrl+Shift+L" },
+      "description": "Instant Autofill Entire Form"
+    },
+    "show-messages": {
+      "suggested_key": { "default": "Ctrl+Shift+M" },
+      "description": "Show Outreach Messages"
+    }
+  }
+}

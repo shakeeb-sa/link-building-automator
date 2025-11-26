@@ -1,18 +1,35 @@
-Here is the list of all active shortcuts in your extension:
+⚡ KINETIC: The Link Building Engine
+1. The Filling Engine (Data Entry)
+Strategies for filling forms instantly.
 
-**Left Click Shortcuts:**
-1.  **4x Click:** Fill All (Smart Fill + Checkboxes + Open File Upload)
-2.  **Ctrl + 4x Click:** Smart Dropdown Sequence Only
-3.  **Shift + 4x Click:** Force Fill Empty Inputs Only
-4.  **Ctrl + Shift + 4x Click:** Force Fill Empty Dropdowns Only
-5.  **Alt + 2x Click:** Open/Refresh Fakemail
-6.  **Shift + Alt + 2x Click:** Open Converter Tool
+Shortcut	Feature Name	What It Does
+Click (4x)	God Mode (Smart Fill)	The primary trigger. Fills all empty text inputs, checks checkboxes, and auto-opens file uploaders.
+Ctrl + Click (4x)	Observer Sequence	Triggers the "Smart Dropdown" logic. Selects Country → Watches DOM → Selects Region → Watches DOM → Selects City. Zero wait time.
+Shift + Click (4x)	Force Fill (Inputs)	"Cleanup Mode." Scans for any empty text fields remaining and fills them with generated Fake Data (prevents validation errors).
+Ctrl + Shift + Click (4x)	Force Fill (Selects)	"Cleanup Mode." Scans for any unselected dropdowns and picks a random valid option.
+Focus on Input	Context Picker	Shows a floating menu to manually inject specific data (e.g., just "Email" or just "Fake Name") into a single field.
+2. The Content Manager (Snippets & formats)
+Handling Descriptions, HTML, and BBCodes.
 
-**Right Click Shortcuts:**
-7.  **Ctrl + 2x Right Click:** Open Text & Link Menu (5 Fields)
-8.  **Alt + 2x Right Click:** Auto Submit / Publish
+Shortcut	Feature Name	What It Does
+Ctrl + Right-Click (2x)	Smart Memory Paste	Instantly pastes your stored Bio/Description. Intelligent: If you've visited this domain before, it remembers your preferred format (HTML, BBCode, Markdown) and auto-pastes it without asking.
+Ctrl + Shift + Right-Click (2x)	Format Override	Forces the Format Menu to open. Use this to change or delete the saved preference for a specific website.
+3. The Navigator (Movement)
+Moving between pages and tools.
 
-**Keyboard Shortcuts:**
-9.  **Ctrl + Shift + 1:** Fill Profile 1
-10. **Ctrl + Shift + 2:** Fill Profile 2
-11. **Ctrl + Shift + L:** Trigger Auto Fill
+Shortcut	Feature Name	What It Does
+Alt + G	Gateway Hunter	Opens "Mission Control." A visual menu of found Login/Register links on the page + brute-force shortcuts (/wp-admin, /register, /account).
+Alt + Click (2x)	Fakemail Trigger	Opens or refreshes your designated Fake Email service in a new tab.
+Shift + Alt + Click (2x)	Converter Hub	Switches to your Link Converter tool (preserves state/data without refreshing).
+(Auto / Passive)	Collision Detector	If you visit a URL that looks like a competitor's profile (e.g., /user/competitor), it offers a one-click button to swap it with your own profile URL.
+4. The Submitter (Action)
+Closing the deal.
+
+Shortcut	Feature Name	What It Does
+Alt + Right-Click (2x)	Universal Submitter	Scans the DOM for the primary action button ("Submit", "Post", "Register", "Create Thread", "Checkout") and clicks it. Includes visual flash confirmation.
+5. The Agency Hub (Popup Interface)
+Management & Storage.
+
+Unlimited Profiles: Create, Rename, and Delete profiles dynamically.
+JSON Backup: Export your entire database to a file; Import to restore on any computer.
+Auto-Cache: Saves data to local.storage instantly for millisecond-speed access by the content script.

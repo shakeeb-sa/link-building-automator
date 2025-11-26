@@ -179,4 +179,100 @@ document.addEventListener("DOMContentLoaded", () => {
     reader.readAsText(file);
   });
 
+  // Add this INSIDE your DOMContentLoaded event listener in popup.js
+
+  // --- WATCHTOWER ELEMENTS ---
+  const xlsxInput = document.getElementById("xlsxInput");
+  const uploadView = document.getElementById("uploadView");
+  const activeView = document.getElementById("activeView");
+  const dbStatus = document.getElementById("dbStatus");
+  const domainCount = document.getElementById("domainCount");
+  const clearDbBtn = document.getElementById("clearDbBtn");
+
+  // 1. Check Status on Load
+  chrome.storage.local.get(["watchtower_domains", "watchtower_filename"], (data) => {
+    if (data.watchtower_domains && data.watchtower_domains.length > 0) {
+      showActiveState(data.watchtower_domains.length, data.watchtower_filename);
+    } else {
+      showUploadState();
+    }
+  });
+
+  // 2. Handle File Upload
+  xlsxInput.addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, { type: "array" });
+
+      let allDomains = new Set();
+
+      // Iterate EVERY Sheet
+      workbook.SheetNames.forEach((sheetName) => {
+        const worksheet = workbook.Sheets[sheetName];
+        const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 }); // Get as Array of Arrays
+
+        // Flatten and Extract URLs
+        json.forEach((row) => {
+          row.forEach((cell) => {
+            if (typeof cell === "string" && cell.includes(".")) {
+              const domain = extractDomain(cell);
+              if (domain) allDomains.add(domain);
+            }
+          });
+        });
+      });
+
+      // Save to Storage
+      const domainArray = Array.from(allDomains);
+      chrome.storage.local.set({
+        watchtower_domains: domainArray,
+        watchtower_filename: file.name
+      }, () => {
+        showActiveState(domainArray.length, file.name);
+        status.textContent = "Database Updated!";
+      });
+    };
+    reader.readAsArrayBuffer(file);
+  });
+
+  // 3. Clear Database
+  clearDbBtn.addEventListener("click", () => {
+    chrome.storage.local.remove(["watchtower_domains", "watchtower_filename"], () => {
+      showUploadState();
+      status.textContent = "Database Cleared";
+    });
+  });
+
+  // --- HELPER FUNCTIONS ---
+  function extractDomain(url) {
+    try {
+      // Handle raw domains like "google.com" by adding protocol
+      if (!url.startsWith("http")) url = "http://" + url;
+      const hostname = new URL(url).hostname;
+      return hostname.replace(/^www\./, "").toLowerCase();
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function showActiveState(count, filename) {
+    uploadView.style.display = "none";
+    activeView.style.display = "block";
+    domainCount.textContent = count;
+    dbStatus.textContent = "Active: " + (filename.length > 15 ? filename.substring(0,12)+"..." : filename);
+    dbStatus.style.color = "#00b894"; // Green
+  }
+
+  function showUploadState() {
+    uploadView.style.display = "block";
+    activeView.style.display = "none";
+    dbStatus.textContent = "Inactive";
+    dbStatus.style.color = "#aaa";
+    xlsxInput.value = ""; // Reset file input
+  }
+
 });

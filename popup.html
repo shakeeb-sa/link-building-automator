@@ -83,6 +83,37 @@
         <button class="icon-btn danger" id="deleteBtn">Delete</button>
       </div>
     </div>
+    <!-- ... inside popup.html, place this right after the "control-panel" div ... -->
+
+    <!-- WATCHTOWER (COLLISION DETECTOR) -->
+    <div class="control-panel" style="border-left: 4px solid #d63031;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <strong>🛡️ Watchtower</strong>
+        <span id="dbStatus" style="font-size:10px; color:#aaa;">Inactive</span>
+      </div>
+      
+      <!-- Upload State -->
+      <div id="uploadView">
+        <label style="cursor:pointer; margin-top:8px; display:block; text-align:center; border:1px dashed #ccc; padding:8px; border-radius:4px; font-size:11px; color:#555;">
+          📂 Upload Master Excel (.xlsx)
+          <input type="file" id="xlsxInput" accept=".xlsx, .xls" style="display:none">
+        </label>
+      </div>
+
+      <!-- Active State (Hidden by default) -->
+      <div id="activeView" style="display:none; margin-top:8px;">
+        <div style="font-size:11px; margin-bottom:5px; color:#2d3436;">
+          Monitoring <b id="domainCount">0</b> domains.
+        </div>
+        <button id="clearDbBtn" class="icon-btn danger" style="width:100%;">🗑️ Clear / Switch Project</button>
+      </div>
+    </div>
+
+    <!-- Add the Script Reference at the bottom of body, BEFORE popup.js -->
+    <script src="xlsx.mini.min.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>
 
     <!-- FORM FIELDS -->
     <div class="scroll-area">

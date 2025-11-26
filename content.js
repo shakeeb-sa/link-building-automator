@@ -1836,3 +1836,83 @@ function createGatewayMenu() {
   document.body.appendChild(backdrop);
   document.body.appendChild(menu);
 }
+
+// ============================================================
+// 🛡️ THE WATCHTOWER (Excel Collision Detector) - V2 (With Green Signal)
+// ============================================================
+(function initWatchtower() {
+  chrome.storage.local.get(["watchtower_domains"], (result) => {
+    const blacklist = result.watchtower_domains;
+    if (!blacklist || blacklist.length === 0) return; // Feature inactive if no file uploaded
+
+    const currentHost = window.location.hostname.replace(/^www\./, "").toLowerCase();
+
+    // Check Exact Match or Subdomain Match
+    const isRestricted = blacklist.some(domain => 
+      currentHost === domain || currentHost.endsWith("." + domain)
+    );
+
+    if (isRestricted) {
+      createWarningBanner(currentHost);
+    } else {
+      createGreenSignal(currentHost);
+    }
+  });
+
+  // 🛑 RED BANNER (BLOCKER)
+  function createWarningBanner(host) {
+    const div = document.createElement("div");
+    div.innerHTML = `
+      <div style="
+        position: fixed; top: 0; left: 0; width: 100%; height: 50px;
+        background: #d63031; color: white; z-index: 2147483647;
+        display: flex; align-items: center; justify-content: center;
+        font-family: -apple-system, system-ui, sans-serif; font-weight: bold; 
+        font-size: 16px; box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+      ">
+        🛑 STOP! Domain (${host}) is in Master File.
+        <button id="llb-dismiss-warning" style="
+          margin-left: 20px; background: white; color: #d63031; border: none;
+          padding: 5px 15px; border-radius: 4px; cursor: pointer; font-weight: bold;
+        ">Dismiss</button>
+      </div>
+      <div style="height: 50px;"></div> <!-- Spacer to push content down -->
+    `;
+    document.body.prepend(div);
+
+    document.getElementById("llb-dismiss-warning").onclick = () => {
+      div.remove();
+    };
+  }
+
+  // ✅ GREEN SIGNAL (SAFE TO BUILD)
+  function createGreenSignal(host) {
+    const div = document.createElement("div");
+    div.innerHTML = `
+      <div style="
+        position: fixed; bottom: 20px; left: 20px; z-index: 2147483647;
+        background: #00b894; color: white; padding: 12px 20px;
+        border-radius: 50px; font-family: -apple-system, system-ui, sans-serif;
+        font-weight: bold; font-size: 14px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        display: flex; align-items: center; gap: 8px; animation: slideInLeft 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      ">
+        <span>✅</span>
+        <span>Clean Domain: Ready to Build</span>
+      </div>
+      <style>
+        @keyframes slideInLeft {
+          from { transform: translateX(-100px); opacity: 0; }
+          to { transform: translateX(0); opacity: 1; }
+        }
+      </style>
+    `;
+    document.body.appendChild(div);
+
+    // Auto-fade out after 4 seconds (so it doesn't annoy the user)
+    setTimeout(() => {
+      div.style.transition = "opacity 1s";
+      div.style.opacity = "0";
+      setTimeout(() => div.remove(), 1000);
+    }, 4000);
+  }
+})();

@@ -175,17 +175,31 @@ function getFieldType(el) {
     el.getAttribute("aria-label"),
     el.labels?.[0]?.textContent,
     el.closest("label")?.textContent,
+    el.previousElementSibling?.textContent, // Look at previous text (common in WP)
     el.closest("div")?.textContent || "",
   ]
     .join(" ")
     .toLowerCase();
 
-  // Standard checks
+  // 1. PASSWORD (Always First)
   if (el.type === "password") return "password";
+
+  // 2. USERNAME (MOVED UP! Critical for WordPress)
+  // WordPress uses "log", "user_login", "signup_username"
+  if (
+      /user.?name|login|user_login|log\b|signup_username|handle|alias/i.test(str) &&
+      !/email|e-mail/i.test(el.name) // Safety: If name is explicitly "user_email", it's not a username
+  ) {
+      return "username";
+  }
+
+  // 3. EMAIL
   if (el.type === "email" || /email|e-mail|mail/i.test(str)) {
     if (/secondary|alt|backup|other/i.test(str)) return "secondaryEmail";
     return "email";
   }
+
+  // 4. WEBSITE / SOCIAL
   if (/website|site|url|domain|link|web.?address/i.test(str)) {
     if (/social|twitter|facebook|linkedin|instagram/i.test(str))
       return "social";
@@ -202,26 +216,19 @@ function getFieldType(el) {
   if (/price|budget|cost|amount/i.test(str)) return "price";
   if (/billing/i.test(str)) return "billing";
   if (/shipping/i.test(str)) return "shipping";
-  // ←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
-  // ADD THIS EXACT BLOCK HERE (RIGHT AFTER THE ABOVE LINES)
-  // ←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
+
   if (
     /category|cat.?id|type.?of.?post|section|classified/i.test(str) ||
-    el.id === "catId" ||
-    el.name === "catId"
+    el.id === "catId" || el.name === "catId"
   ) {
     return "category";
   }
-  // ←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
 
-  if (/username|user.?name|login|handle/i.test(str)) return "username";
   if (/company|business|organization/i.test(str)) return "company";
   if (/phone|mobile|tel|cell/i.test(str)) return "phone";
 
   if (
-    /address|street|location|city|state|province|zip|post.?code|country/i.test(
-      str
-    )
+    /address|street|location|city|state|province|zip|post.?code|country/i.test(str)
   ) {
     if (/city|town/i.test(str)) return "city";
     if (/state|province|region/i.test(str)) return "region";
@@ -496,7 +503,6 @@ document.addEventListener(
             "reset",
             "file",
             "checkbox",
-            "radio",
           ];
           if (forbiddenTypes.includes(el.type)) return;
 
@@ -880,6 +886,103 @@ document.addEventListener(
         }
       });
 
+            // ────────────────────────────────────────────────────────────
+      //  ★★★ PENNY-PINCHER MODE v2 (Deep Scan) ★★★
+      // ────────────────────────────────────────────────────────────
+      const radioGroups = {};
+      
+      // 1. Group all visible radio buttons by Name
+      document.querySelectorAll('input[type="radio"]').forEach((rb) => {
+        if (rb.disabled || rb.offsetParent === null) return;
+        const name = rb.name || "orphan_" + Math.random(); 
+        if (!radioGroups[name]) radioGroups[name] = [];
+        radioGroups[name].push(rb);
+      });
+
+      // 2. Analyze each group
+      Object.values(radioGroups).forEach((group) => {
+        let bestCandidate = null;
+        let highestScore = -Infinity;
+
+        group.forEach((rb) => {
+          // --- STEP A: DEEP TEXT EXTRACTION ---
+          let text = "";
+          
+          // 1. Check explicit <label> tag
+          if (rb.id) {
+            const labelNode = document.querySelector(`label[for="${rb.id}"]`);
+            if (labelNode) text += " " + labelNode.textContent;
+          }
+          
+          // 2. Check Immediate Parent Text (e.g. <label><input> Text</label>)
+          if (rb.parentElement) text += " " + rb.parentElement.textContent;
+
+          // 3. CRITICAL FIX: Check Grandparent/Container Text
+          // This solves the "div.upay_itemform" issue where text is a sibling of the parent span
+          const container = rb.closest('div, li, td, tr');
+          if (container) {
+             // We only take the container text if it's not HUGE (avoid reading whole page)
+             if (container.innerText.length < 400) {
+               text += " " + container.innerText;
+             }
+          }
+
+          // Normalize
+          text = text.toLowerCase().replace(/\s+/g, " ").trim();
+
+          // --- STEP B: SCORING LOGIC ---
+          let score = 0;
+
+          // ☠️ DANGER: MONEY PATTERNS
+          // Matches: 20USD, $5, 5 USD, 5 + 5, Premium, Highlight, Pack
+          if (
+             /\$|usd|eur|gbp|aud|cad/.test(text) ||     // Currency symbols
+             /\b\d+\s?usd/i.test(text) ||               // "20USD"
+             /premium|highlight|featured|pack/i.test(text) || // Upsell keywords
+             /best deal|upay/i.test(text)               // Aggressive marketing
+          ) {
+            score -= 100;
+          }
+
+          // 🛡️ SAFETY: FREE / DECLINE PATTERNS
+          // Matches: "No,thanks", "Free ad", "Standard", "0.00"
+          if (
+             /no,?\s?thanks/i.test(text) ||   // "No,thanks"
+             /i do not want/i.test(text) ||   // "I do not want extra exposure"
+             /free ad/i.test(text) ||         // "submit a free ad"
+             /basic|standard/i.test(text) ||  // Standard tiers
+             /\b0(\.00)?\s?(usd|\$)/i.test(text) // 0 USD
+          ) {
+            score += 100;
+          }
+          
+          // If this specific option is checked by default AND costs money, we must nuke it.
+          // (Score calculation handles the selection, but we note it for debugging)
+          
+          if (score > highestScore) {
+            highestScore = score;
+            bestCandidate = rb;
+          }
+        });
+
+        // 3. Execute
+        // Only click if we found a candidate and it's not already checked
+        // OR if the currently checked item is "Dangerous" (negative score)
+        if (bestCandidate) {
+             // If the best candidate is already checked, we are good. 
+             // If not, we switch to it.
+             if (!bestCandidate.checked) {
+                bestCandidate.click();
+                bestCandidate.checked = true;
+                bestCandidate.dispatchEvent(new Event("change", { bubbles: true }));
+                // Visual confirmation for the user
+                bestCandidate.style.boxShadow = "0 0 0 4px #00b894"; // Green Ring
+                toast("🛡️ Switched to Free Option");
+                checked++;
+             }
+        }
+      });
+
       // ... (smartFill logic above remains the same) ...
 
       // ────────────────────────────────────────────────────────────
@@ -945,125 +1048,180 @@ document.addEventListener(
   true
 );
 
-// --- MANUAL CLICK MENU ---
+// ────────────────────────────────────────────────────────────
+//  ★★★ SMART CONTEXT MENU (GLITCH-FREE VERSION) ★★★
+// ────────────────────────────────────────────────────────────
+let activeMenuInput = null;
+
+// 1. TRIGGER: Open Menu on Focus
 document.addEventListener("focusin", async (e) => {
   const input = e.target;
-  if (!["INPUT", "TEXTAREA", "SELECT"].includes(input.tagName)) return;
-  if (
-    [
-      "submit",
-      "button",
-      "image",
-      "reset",
-      "hidden",
-      "file",
-      "checkbox",
-      "radio",
-    ].includes(input.type)
-  )
-    return;
 
+  // Filter unwanted elements
+  if (!["INPUT", "TEXTAREA", "SELECT"].includes(input.tagName)) return;
+  if (["submit", "button", "image", "reset", "hidden", "file", "checkbox", "radio"].includes(input.type)) return;
+
+  // Prevent loop if already active
+  if (activeMenuInput === input && suggestionBox) return;
+  activeMenuInput = input;
+
+  // Fetch Data
   const { data } = await getProfileData();
   if (!data || Object.keys(data).length === 0) return;
 
+  // Remove existing menu if any
   if (suggestionBox) suggestionBox.remove();
 
+  // Render the new menu
+  createSmartMenu(input, data);
+});
+
+// 2. CLOSER: Close Menu on Click Outside
+document.addEventListener("mousedown", (e) => {
+  if (!suggestionBox) return;
+
+  // CRITICAL FIX: Do not close if clicking the Input itself or the Menu itself
+  if (suggestionBox.contains(e.target) || e.target === activeMenuInput) {
+    return;
+  }
+
+  // Close
+  suggestionBox.remove();
+  suggestionBox = null;
+  activeMenuInput = null;
+});
+
+// 3. BUILDER: Generate the UI
+function createSmartMenu(input, data) {
+  const detectedType = getFieldType(input);
+
+  // Define Fields & Match Logic
+  let fields = [
+    { key: "username", label: "👤 Username", typeMatch: ["username"] },
+    { key: "email", label: "📧 Email", typeMatch: ["email", "secondaryEmail"] },
+    { key: "password", label: "🔑 Password", typeMatch: ["password"] },
+    { key: "firstName", label: "📝 First Name", typeMatch: ["firstName"] },
+    { key: "lastName", label: "📝 Last Name", typeMatch: ["lastName"] },
+    { key: "website", label: "🔗 Website URL", typeMatch: ["website"] },
+    { key: "company", label: "🏢 Company", typeMatch: ["company"] },
+    { key: "title", label: "🏷️ Title / Subject", typeMatch: ["title", "subject"] },
+    { key: "phone", label: "📞 Phone", typeMatch: ["phone", "fax"] },
+    { key: "address", label: "📍 Address", typeMatch: ["address"] },
+    { key: "city", label: "🏙️ City", typeMatch: ["city"] },
+    { key: "zip", label: "📮 Zip / Postal", typeMatch: ["zip"] },
+    { key: "region", label: "🗺️ State / Region", typeMatch: ["region"] },
+    { key: "country", label: "🏳️ Country", typeMatch: ["country"] },
+    { key: "category", label: "📂 Category", typeMatch: ["category"] }
+  ];
+
+  // SORT: Prioritize the detected type
+  fields.sort((a, b) => {
+    const aMatches = a.typeMatch.includes(detectedType);
+    const bMatches = b.typeMatch.includes(detectedType);
+    return bMatches - aMatches;
+  });
+
+  // Create Container
   suggestionBox = document.createElement("div");
   suggestionBox.className = "llb-suggestion";
-
+  
+  // Header
+  const confidenceLabel = detectedType !== "unknown" ? `Detected: ${detectedType.toUpperCase()}` : "Select Data";
   suggestionBox.innerHTML = `
     <div class="llb-header" style="display: flex; justify-content: space-between; align-items: center;">
-        <span>⚡ Choose Value</span>
+        <span>⚡ ${confidenceLabel}</span>
         <span id="llb-close-btn" style="cursor: pointer; font-size: 24px; line-height: 20px; opacity: 0.8;">&times;</span>
     </div>`;
 
-  suggestionBox
-    .querySelector("#llb-close-btn")
-    .addEventListener("click", (e) => {
-      e.stopPropagation();
-      suggestionBox.remove();
-      suggestionBox = null;
-    });
+  // Close Button Logic
+  suggestionBox.querySelector("#llb-close-btn").addEventListener("click", (e) => {
+    e.stopPropagation();
+    suggestionBox.remove();
+    suggestionBox = null;
+    activeMenuInput = null;
+  });
 
-  const fields = [
-    { key: "firstName", label: "First Name" },
-    { key: "lastName", label: "Last Name" },
-    { key: "email", label: "Email" },
-    { key: "username", label: "Username" },
-    { key: "password", label: "Password" },
-    { key: "company", label: "Company / Site" },
-    { key: "title", label: "Title / Subject" },
-    { key: "website", label: "Website URL" },
-    { key: "phone", label: "Phone" },
-    { key: "address", label: "Address" },
-    { key: "city", label: "City" },
-    { key: "region", label: "Region / State" },
-    { key: "zip", label: "Zip / Postal" },
-    { key: "fake", label: "🎲 Generate Fake for this field" },
-  ];
-
+  // Render Data Items
   fields.forEach((f) => {
-    if (f.key === "fake") {
-      const item = document.createElement("div");
-      item.className = "llb-item";
-      item.style.background = "#fff0f0";
-      item.innerHTML = `<strong>${f.label}</strong>`;
-      item.onclick = () => {
-        const type = getFieldType(input);
-        const fake = generateFake(type);
-        if (fake) {
-          smartFill(input, fake);
-          toast(`generated: ${fake}`);
-        } else {
-          toast(`⚠️ Can't fake this type (${type})`);
-        }
-        suggestionBox.remove();
-      };
-      suggestionBox.appendChild(item);
-      return;
-    }
-
-    if (!data[f.key]) return;
+    if (!data[f.key]) return; // Skip empty user data
 
     let display = data[f.key];
     if (f.key === "password") display = "••••••••";
 
+    const isMatch = f.typeMatch.includes(detectedType);
     const item = document.createElement("div");
     item.className = "llb-item";
-    item.innerHTML = `<strong>${f.label}</strong><small>${display}</small>`;
-    item.onclick = () => {
+    
+    // Highlight the Best Match
+    if (isMatch) {
+        item.style.background = "#e3f2fd";
+        item.style.borderLeft = "4px solid #2196f3";
+        item.innerHTML = `
+          <div style="width:100%">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+               <strong>${f.label}</strong>
+               <span style="font-size:9px; color:#2196f3; font-weight:bold; background:#fff; padding:2px 5px; border-radius:4px; border:1px solid #2196f3;">BEST MATCH</span>
+            </div>
+            <small style="color:#333; font-weight:500;">${display}</small>
+          </div>`;
+    } else {
+        item.innerHTML = `<strong>${f.label}</strong><small>${display}</small>`;
+    }
+
+    // Click to Fill
+    item.onmousedown = (e) => { // Use mousedown to prevent focus loss issues
+      e.preventDefault();
+      e.stopPropagation();
       smartFill(input, data[f.key]);
       suggestionBox.remove();
+      suggestionBox = null;
+      activeMenuInput = null;
       toast(`${f.label} inserted`);
     };
     suggestionBox.appendChild(item);
   });
 
-  const reminder = document.createElement("div");
-  reminder.className = "llb-item";
-  reminder.innerHTML = `<strong>4 clicks anywhere = Fill All</strong>`;
-  reminder.style.background = "#e8f5e8";
-  reminder.style.fontWeight = "bold";
-  suggestionBox.appendChild(reminder);
-
-  document.body.appendChild(suggestionBox);
-
-  const rect = input.getBoundingClientRect();
-  suggestionBox.style.top = `${window.scrollY + rect.bottom + 10}px`;
-  suggestionBox.style.left = `${window.scrollX + rect.left}px`;
-});
-
-document.addEventListener("click", (e) => {
-  if (
-    suggestionBox &&
-    !suggestionBox.contains(e.target) &&
-    !["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName)
-  ) {
+  // Render Fake Generator Option
+  const fakeLabel = detectedType !== "unknown" ? `Generate Fake ${detectedType}` : "Generate Fake Data";
+  const fakeItem = document.createElement("div");
+  fakeItem.className = "llb-item";
+  fakeItem.style.background = "#fff0f0";
+  fakeItem.innerHTML = `<strong>🎲 ${fakeLabel}</strong>`;
+  
+  fakeItem.onmousedown = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const fake = generateFake(detectedType);
+    const val = fake || "N/A";
+    smartFill(input, val);
     suggestionBox.remove();
     suggestionBox = null;
-  }
-});
+    activeMenuInput = null;
+    toast(`Generated: ${val}`);
+  };
+  suggestionBox.appendChild(fakeItem);
 
+  // Append to DOM
+  document.body.appendChild(suggestionBox);
+
+  // Smart Positioning
+  const rect = input.getBoundingClientRect();
+  const topPos = window.scrollY + rect.bottom + 5;
+  
+  if (topPos + 350 > document.body.scrollHeight) {
+      // Flip Up if near bottom
+      suggestionBox.style.top = `${window.scrollY + rect.top - suggestionBox.offsetHeight - 5}px`;
+  } else {
+      suggestionBox.style.top = `${topPos}px`;
+  }
+  
+  // Keep within left bounds
+  let leftPos = window.scrollX + rect.left;
+  if (leftPos + 300 > window.innerWidth) {
+      leftPos = window.innerWidth - 310;
+  }
+  suggestionBox.style.left = `${leftPos}px`;
+}
 // Helper to pause execution
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -2039,3 +2197,204 @@ function createGatewayMenu() {
     document.getElementById("llb-close").onclick = () => hud.remove();
   }
 })();
+
+// ────────────────────────────────────────────────────────────
+//  ★★★ THE SHOCKWAVE PROTOCOL (Long Press 2s) ★★★
+// ────────────────────────────────────────────────────────────
+let shockwaveTimer;
+let shockwaveVisual;
+
+document.addEventListener("mousedown", (e) => {
+  // Only Left Click (button 0)
+  if (e.button !== 0) return;
+
+  // 1. Visual "Charging" Indicator
+  shockwaveVisual = document.createElement("div");
+  Object.assign(shockwaveVisual.style, {
+    position: "fixed",
+    top: "0", left: "0", width: "0%", height: "5px",
+    backgroundColor: "#00b894", zIndex: "2147483647",
+    transition: "width 2s linear", boxShadow: "0 0 10px #00b894"
+  });
+  document.body.appendChild(shockwaveVisual);
+  
+  // Force reflow to enable transition
+  setTimeout(() => { if(shockwaveVisual) shockwaveVisual.style.width = "100%"; }, 10);
+
+  // 2. Start Timer
+  shockwaveTimer = setTimeout(() => {
+    triggerShockwave(); // 💥 BOOM
+    cleanupShockwave();
+  }, 2000);
+});
+
+function cleanupShockwave() {
+  if (shockwaveTimer) clearTimeout(shockwaveTimer);
+  if (shockwaveVisual) shockwaveVisual.remove();
+  shockwaveVisual = null;
+}
+
+document.addEventListener("mouseup", cleanupShockwave);
+document.addEventListener("mouseleave", cleanupShockwave);
+
+async function triggerShockwave() {
+  toast("⚡ SHOCKWAVE: BRUTAL INJECTION STARTING...");
+
+  const { data } = await getProfileData();
+  const rawData = data || {};
+  let count = 0;
+
+  // ============================================================
+  // 1. RADIO BUTTONS (THE NUCLEAR OPTION)
+  // ============================================================
+  const radioGroups = {};
+  // Find ALL radios, even hidden ones
+  document.querySelectorAll('input[type="radio"]').forEach((rb) => {
+    const name = rb.name || "orphan_" + Math.random();
+    if (!radioGroups[name]) radioGroups[name] = [];
+    radioGroups[name].push(rb);
+  });
+
+  Object.values(radioGroups).forEach((group) => {
+    let bestCandidate = null;
+    let highestScore = -Infinity;
+
+    group.forEach((rb) => {
+      // --- DEEP TEXT SCAN (Parent & Container) ---
+      let text = "";
+      if (rb.id) {
+        const label = document.querySelector(`label[for="${rb.id}"]`);
+        if (label) text += " " + label.innerText;
+      }
+      // Grab text from the row/container div (Crucial for your screenshot)
+      const container = rb.closest('div, tr, li, label');
+      if (container) text += " " + container.innerText;
+
+      text = text.toLowerCase();
+
+      // --- SCORING ---
+      let score = 0;
+      // Kill Paid Options
+      if (/\$|usd|eur|gbp|price|cost|bill|pay|premium|highlight|featured|pack|deal/i.test(text)) score -= 500;
+      
+      // Hunt Free Options
+      if (/no,?\s?thanks/i.test(text)) score += 1000; // Priority #1
+      if (/free|basic|standard|0\.00/i.test(text)) score += 500;
+
+      if (score > highestScore) {
+        highestScore = score;
+        bestCandidate = rb;
+      }
+    });
+
+    // --- EXECUTION: BRUTAL FORCE ---
+    if (bestCandidate) {
+      
+      // 1. Uncheck all others physically
+      group.forEach(peer => {
+        peer.checked = false;
+        peer.removeAttribute("checked");
+      });
+
+      // 2. Force Property State
+      bestCandidate.checked = true;
+      bestCandidate.setAttribute("checked", "checked");
+
+      // 3. EVENT STORM (Fire everything to wake up the site's JS)
+      ["mousedown", "mouseup", "click", "input", "change"].forEach(evt => {
+        try {
+          bestCandidate.dispatchEvent(new Event(evt, { bubbles: true, cancelable: true }));
+        } catch (e) {}
+      });
+
+      // 4. CONTAINER CLICK (The "Blind" Fix)
+      // If the input is hidden, clicking it does nothing. We must click the wrapper.
+      // We try the immediate parent (span) AND the container (div) just to be sure.
+      if (bestCandidate.parentElement) bestCandidate.parentElement.click();
+      
+      // Visual confirmation
+      const visualTarget = bestCandidate.closest('div') || bestCandidate.parentElement;
+      if (visualTarget) visualTarget.style.boxShadow = "0 0 0 5px #00b894"; // Big Green Border
+      
+      count++;
+    }
+  });
+
+  // ============================================================
+  // 2. TEXT INPUTS (SMART FILL)
+  // ============================================================
+  document.querySelectorAll("input, textarea").forEach((el) => {
+    if (el.disabled || el.readOnly || el.type === "hidden") return;
+    if (["checkbox", "radio", "file", "submit", "button", "image"].includes(el.type)) return;
+    
+    // Skip if user already typed something
+    if (el.value && el.value.trim().length > 0) return;
+
+    const type = getFieldType(el);
+    let valueToFill = null;
+
+    // Priority 1: Saved Data
+    if (rawData[type]) valueToFill = rawData[type];
+    // Priority 2: Fake Data
+    else valueToFill = generateFake(type);
+    // Priority 3: Hard Fallback (Inject anything)
+    if (!valueToFill) valueToFill = "N/A"; 
+
+    smartFill(el, valueToFill);
+    count++;
+  });
+
+  // ============================================================
+  // 3. DROPDOWNS (FORCE SELECT)
+  // ============================================================
+  document.querySelectorAll("select").forEach((el) => {
+    if (el.disabled) return;
+    if (el.selectedIndex > 0 && el.value !== "") return; // Skip if filled
+
+    // 1. Try Random Valid Option
+    const valid = Array.from(el.options).filter(o => 
+        o.value !== "" && !/select|choose|none/i.test(o.text)
+    );
+
+    if (valid.length > 0) {
+       const rand = valid[Math.floor(Math.random() * valid.length)];
+       el.value = rand.value; // Force Value
+       el.selectedIndex = rand.index; // Force Index
+       el.dispatchEvent(new Event("change", { bubbles: true }));
+       count++;
+    } else if (el.options.length > 1) {
+       el.selectedIndex = 1; // Desperation move
+       el.dispatchEvent(new Event("change", { bubbles: true }));
+       count++;
+    }
+  });
+
+  // ============================================================
+  // 4. CHECKBOXES (AGREE TO EVERYTHING)
+  // ============================================================
+  document.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
+    if (cb.disabled || cb.checked) return;
+    
+    // Broad regex to accept terms, age, privacy, etc.
+    const text = (cb.name + " " + (cb.getAttribute("aria-label")||"") + " " + (cb.closest("label")?.innerText||"")).toLowerCase();
+    
+    // We avoid "Delete" or "Unsubscribe" checkboxes, but check everything else
+    if (!/delete|remove|unsubscribe/i.test(text)) {
+        cb.click();
+        cb.checked = true; // Double tap
+        count++;
+    }
+  });
+
+  // ============================================================
+  // 5. FILE UPLOADS (VISUAL ALERT)
+  // ============================================================
+  const fileInput = document.querySelector('input[type="file"]');
+  if (fileInput) {
+      fileInput.scrollIntoView({behavior: "smooth", block: "center"});
+      fileInput.style.outline = "5px solid red";
+      setTimeout(() => fileInput.click(), 500); 
+  }
+
+  toast(`⚡ SHOCKWAVE: Forced ${count} Elements`);
+}

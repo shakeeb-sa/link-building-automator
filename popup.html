@@ -279,8 +279,138 @@
 
       <hr style="border: 0; border-top: 1px solid #eee; margin: 15px 0" />
 
-      <label>Description / Bio (Rich Text or HTML)</label>
-      <div id="masterInput" contenteditable="true"></div>
+      <!-- RICH TEXT EDITOR SUITE -->
+      <label
+        style="display: flex; justify-content: space-between; align-items: end"
+      >
+        <span>Description / Bio</span>
+        <div
+          class="editor-toolbar"
+          style="display: flex; gap: 5px; margin-bottom: 4px"
+        >
+          <!-- Standard Tools -->
+          <button
+            type="button"
+            id="btnBold"
+            class="icon-btn"
+            title="Bold (Ctrl+B)"
+          >
+            <b>B</b>
+          </button>
+          <button
+            type="button"
+            id="btnItalic"
+            class="icon-btn"
+            title="Italic (Ctrl+I)"
+          >
+            <i>I</i>
+          </button>
+          <button
+            type="button"
+            id="btnLink"
+            class="icon-btn"
+            title="Insert Link"
+          >
+            🔗
+          </button>
+          <!-- The Source Switcher -->
+          <button
+            type="button"
+            id="btnSource"
+            class="icon-btn"
+            title="Toggle HTML Source"
+            style="color: #d63031; font-weight: bold"
+          >
+            &lt;/&gt;
+          </button>
+        </div>
+      </label>
+
+      <div style="position: relative">
+        <!-- 1. Visual Editor -->
+        <div
+          id="masterInput"
+          contenteditable="true"
+          style="
+            min-height: 80px;
+            max-height: 200px;
+            overflow-y: auto;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: #fff;
+          "
+        ></div>
+
+        <!-- 2. Raw Code Editor (Hidden by default) -->
+        <textarea
+          id="sourceInput"
+          style="
+            display: none;
+            width: 100%;
+            height: 80px;
+            min-height: 80px;
+            border: 1px solid #333;
+            background: #2d3436;
+            color: #00cec9;
+            font-family: monospace;
+            font-size: 11px;
+            padding: 8px;
+            box-sizing: border-box;
+            resize: vertical;
+          "
+        ></textarea>
+
+        <!-- 3. The URL Popup (Hidden) -->
+        <div
+          id="linkModal"
+          style="
+            display: none;
+            position: absolute;
+            top: 5px;
+            left: 5px;
+            right: 5px;
+            background: white;
+            border: 1px solid #0984e3;
+            padding: 8px;
+            border-radius: 4px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+            z-index: 10;
+          "
+        >
+          <div style="display: flex; gap: 5px">
+            <input
+              type="text"
+              id="urlInput"
+              placeholder="https://example.com"
+              style="flex-grow: 1; font-size: 12px; padding: 4px"
+            />
+            <button
+              id="applyLinkBtn"
+              style="
+                background: #0984e3;
+                color: white;
+                border: none;
+                border-radius: 3px;
+                cursor: pointer;
+              "
+            >
+              ✔
+            </button>
+            <button
+              id="cancelLinkBtn"
+              style="
+                background: #dfe6e9;
+                border: none;
+                border-radius: 3px;
+                cursor: pointer;
+              "
+            >
+              ✖
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- FOOTER -->

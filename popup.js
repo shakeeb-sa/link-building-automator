@@ -108,6 +108,10 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     formData.masterHTML = masterInput.innerHTML;
 
+    // 🛠️ FIX: Persist the Lock State!
+    // Previously, this property was being wiped out because it's not in formFields.
+    formData.isCatLocked = isCatLocked;
+
     store.profiles[store.activeId].data = formData;
   }
 
@@ -693,12 +697,13 @@ document.addEventListener("DOMContentLoaded", () => {
     ],
   };
 
-  // 2. The Analyzer
+  // 2. The Analyzer (Fixed: Word Boundaries)
   function autoSuggestCategory(text) {
     // STOP if Locked
     if (isCatLocked) return;
 
-    const lowerText = text.toLowerCase();
+    // We use the raw text for Regex matching to preserve boundaries,
+    // but the flag 'i' handles case insensitivity.
     let bestCategory = "";
     let maxHits = 0;
 
@@ -706,7 +711,10 @@ document.addEventListener("DOMContentLoaded", () => {
     for (const [catName, keywords] of Object.entries(categoryKeywords)) {
       let hits = 0;
       keywords.forEach((kw) => {
-        if (lowerText.includes(kw)) hits++;
+        // 🛠️ FIX: Use Regex with Word Boundaries (\b)
+        // This prevents "classy" matching "class" or "career" matching "car"
+        const regex = new RegExp(`\\b${kw}\\b`, "i");
+        if (regex.test(text)) hits++;
       });
 
       if (hits > maxHits) {
@@ -718,14 +726,20 @@ document.addEventListener("DOMContentLoaded", () => {
     // Threshold: Must match at least 1 keyword to change it
     if (maxHits > 0) {
       const catInput = document.getElementById("category");
-      // We create a "Priority String" combining the Broad Category + Specific Keywords found
-      // e.g., "Real Estate/Property/Rent"
-      catInput.value = bestCategory;
 
-      // Visual feedback (Flash yellow)
-      catInput.style.transition = "background 0.2s";
-      catInput.style.background = "#fff7d1"; // Light yellow
-      setTimeout(() => (catInput.style.background = "white"), 500);
+      // Only update if the new category is different to avoid unnecessary flashing
+      if (catInput.value !== bestCategory) {
+        catInput.value = bestCategory;
+
+        // Visual feedback (Flash yellow)
+        catInput.style.transition = "background 0.2s";
+        catInput.style.background = "#fff7d1"; // Light yellow
+        setTimeout(() => {
+          // Respect the lock visual state when removing the flash
+          if (isCatLocked) catInput.style.background = "#f5f5f5";
+          else catInput.style.background = "white";
+        }, 500);
+      }
     }
   }
 
@@ -842,5 +856,166 @@ document.addEventListener("DOMContentLoaded", () => {
   // Close logic
   closeStrategy.addEventListener("click", () => {
     strategyModal.style.display = "none";
+  });
+
+  // ============================================================
+  // ⚡ AUTO-SAVE ENGINE (Debounced)
+  // ============================================================
+  let autoSaveTimer;
+
+  const triggerAutoSave = () => {
+    // Clear the previous timer (reset the clock if they keep typing)
+    clearTimeout(autoSaveTimer);
+
+    // Wait 500ms after the last keystroke, then save
+    autoSaveTimer = setTimeout(() => {
+      saveCurrentFormToMemory();
+      saveStore("✅ Auto-Saved"); // Updates the status text
+    }, 500);
+  };
+
+  // 1. Attach to all Standard Inputs
+  formFields.forEach((field) => {
+    const el = document.getElementById(field);
+    if (el) {
+      // 'input' event catches typing, deleting, AND pasting
+      el.addEventListener("input", triggerAutoSave);
+    }
+  });
+
+  // 2. Attach to the Description Box (ContentEditable)
+  if (masterInput) {
+    masterInput.addEventListener("input", triggerAutoSave);
+  }
+
+  // ============================================================
+  // 📝 EDITOR ENGINE: HYPERLINKS & HTML TOGGLE
+  // ============================================================
+
+  const btnSource = document.getElementById("btnSource");
+  const btnLink = document.getElementById("btnLink");
+  const btnBold = document.getElementById("btnBold");
+  const btnItalic = document.getElementById("btnItalic");
+
+  const masterDiv = document.getElementById("masterInput");
+  const sourceArea = document.getElementById("sourceInput");
+
+  const linkModal = document.getElementById("linkModal");
+  const urlInput = document.getElementById("urlInput");
+  const applyLinkBtn = document.getElementById("applyLinkBtn");
+  const cancelLinkBtn = document.getElementById("cancelLinkBtn");
+
+  let isHtmlMode = false;
+  let savedSelectionRange = null; // To remember where to put the link
+
+  // --- 1. HTML SOURCE TOGGLE ---
+  btnSource.addEventListener("click", () => {
+    isHtmlMode = !isHtmlMode;
+
+    if (isHtmlMode) {
+      // Switch to Code View
+      sourceArea.value = masterDiv.innerHTML; // Dump HTML into Textarea
+      masterDiv.style.display = "none";
+      sourceArea.style.display = "block";
+      btnSource.style.background = "#2d3436";
+      btnSource.style.color = "#fff";
+      // Disable other buttons
+      [btnBold, btnItalic, btnLink].forEach((b) => (b.disabled = true));
+    } else {
+      // Switch to Visual View
+      masterDiv.innerHTML = sourceArea.value; // Render HTML back to Div
+      sourceArea.style.display = "none";
+      masterDiv.style.display = "block";
+      btnSource.style.background = "";
+      btnSource.style.color = "#d63031";
+      [btnBold, btnItalic, btnLink].forEach((b) => (b.disabled = false));
+
+      // Trigger Auto-Save immediately so data isn't lost
+      masterDiv.dispatchEvent(new Event("input"));
+    }
+  });
+
+  // Sync changes from Textarea to Auto-Save logic
+  sourceArea.addEventListener("input", () => {
+    // We temporarily update the hidden div so the auto-save function grabs the right data
+    masterDiv.innerHTML = sourceArea.value;
+    triggerAutoSave();
+  });
+
+  // --- 2. LINK TOOLBAR BUTTONS ---
+  btnBold.addEventListener("click", () => document.execCommand("bold"));
+  btnItalic.addEventListener("click", () => document.execCommand("italic"));
+  btnLink.addEventListener("click", () => showLinkUI());
+
+  // --- 3. THE "1-SECOND HOLD" LOGIC ---
+  let selectionTimer = null;
+
+  document.addEventListener("selectionchange", () => {
+    // Only run if we are in Visual Mode and the modal isn't already open
+    if (isHtmlMode || linkModal.style.display === "block") return;
+
+    // Clear existing timer
+    clearTimeout(selectionTimer);
+
+    const selection = window.getSelection();
+
+    // Check if selection is within our editor
+    if (!selection.rangeCount) return;
+    const range = selection.getRangeAt(0);
+    if (!masterDiv.contains(range.commonAncestorContainer)) return;
+
+    // Check if user actually selected text (length > 0)
+    if (selection.toString().trim().length > 0) {
+      // ⏳ Start the 1-second countdown
+      selectionTimer = setTimeout(() => {
+        showLinkUI();
+      }, 1000); // 1000ms = 1 second
+    }
+  });
+
+  // --- 4. LINK MODAL LOGIC ---
+  function showLinkUI() {
+    // Save the selection (because clicking the input will lose it)
+    const selection = window.getSelection();
+    if (selection.rangeCount > 0) {
+      savedSelectionRange = selection.getRangeAt(0);
+    }
+
+    const currentText = selection.toString();
+    if (!currentText && !savedSelectionRange) return; // Don't show if nothing selected
+
+    linkModal.style.display = "block";
+    urlInput.value = "";
+    urlInput.focus();
+  }
+
+  function closeLinkUI() {
+    linkModal.style.display = "none";
+    savedSelectionRange = null;
+  }
+
+  applyLinkBtn.addEventListener("click", () => {
+    const url = urlInput.value.trim();
+    if (url && savedSelectionRange) {
+      // Restore selection
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(savedSelectionRange);
+
+      // Execute Command
+      document.execCommand("createLink", false, url);
+
+      // Trigger Save
+      masterDiv.dispatchEvent(new Event("input"));
+    }
+    closeLinkUI();
+  });
+
+  cancelLinkBtn.addEventListener("click", closeLinkUI);
+
+  // Allow "Enter" key in the URL box
+  urlInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") applyLinkBtn.click();
+    if (e.key === "Escape") closeLinkUI();
   });
 });

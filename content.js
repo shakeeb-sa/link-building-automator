@@ -1373,34 +1373,25 @@ document.addEventListener("dblclick", (e) => {
     );
   }
 
-  // --- CONVERSION ENGINES (Unchanged) ---
+  // --- CONVERSION ENGINES (Sanitized) ---
   function cleanHtml(html) {
-    return html.replace(/^\s*<p[^>]*>/i, "").replace(/<\/p>\s*$/i, "");
+    // Remove &nbsp; and standard cleanup
+    if (!html) return "";
+    let clean = html.replace(/&nbsp;/g, " ");
+    return clean.replace(/^\s*<p[^>]*>/i, "").replace(/<\/p>\s*$/i, "");
   }
+
   function toMarkdown(html) {
+    if (!html) return "";
+    // 1. Sanitize Non-Breaking Spaces
+    html = html.replace(/&nbsp;/g, " ");
+
     let temp = document.createElement("div");
     temp.innerHTML = html;
-    temp
-      .querySelectorAll("a")
-      .forEach((a) => a.replaceWith(`[${a.textContent}](${a.href})`));
-    temp
-      .querySelectorAll("b, strong")
-      .forEach((b) => b.replaceWith(`**${b.textContent}**`));
-    temp
-      .querySelectorAll("i, em")
-      .forEach((i) => i.replaceWith(`*${i.textContent}*`));
-    let text = temp.innerHTML.replace(/<br\s*\/?>/gi, "\n");
-    return text.replace(/<[^>]+>/g, "").trim();
-  }
-  function toReferenceMarkdown(html) {
-    let temp = document.createElement("div");
-    temp.innerHTML = html;
-    let refs = [];
-    let counter = 1;
+
     temp.querySelectorAll("a").forEach((a) => {
-      const currentRef = counter++;
-      a.replaceWith(`[${a.textContent}][${currentRef}]`);
-      refs.push(`[${currentRef}]: ${a.href}`);
+      // Trim anchor text to avoid "[  Link ]"
+      a.replaceWith(`[${a.textContent.trim()}](${a.href})`);
     });
     temp
       .querySelectorAll("b, strong")
@@ -1408,6 +1399,35 @@ document.addEventListener("dblclick", (e) => {
     temp
       .querySelectorAll("i, em")
       .forEach((i) => i.replaceWith(`*${i.textContent}*`));
+
+    let text = temp.innerHTML.replace(/<br\s*\/?>/gi, "\n");
+    return text.replace(/<[^>]+>/g, "").trim();
+  }
+
+  function toReferenceMarkdown(html) {
+    if (!html) return "";
+    // 1. Sanitize Non-Breaking Spaces
+    html = html.replace(/&nbsp;/g, " ");
+
+    let temp = document.createElement("div");
+    temp.innerHTML = html;
+    let refs = [];
+    let counter = 1;
+
+    temp.querySelectorAll("a").forEach((a) => {
+      const currentRef = counter++;
+      // Trim the text inside the brackets
+      a.replaceWith(`[${a.textContent.trim()}][${currentRef}]`);
+      refs.push(`[${currentRef}]: ${a.href}`);
+    });
+
+    temp
+      .querySelectorAll("b, strong")
+      .forEach((b) => b.replaceWith(`**${b.textContent}**`));
+    temp
+      .querySelectorAll("i, em")
+      .forEach((i) => i.replaceWith(`*${i.textContent}*`));
+
     return (
       temp.innerHTML
         .replace(/<br\s*\/?>/gi, "\n")
@@ -1415,18 +1435,26 @@ document.addEventListener("dblclick", (e) => {
         .trim() + (refs.length ? "\n\n" + refs.join("\n") : "")
     );
   }
+
   function toBBCode(html) {
+    if (!html) return "";
+    // 1. Sanitize Non-Breaking Spaces
+    html = html.replace(/&nbsp;/g, " ");
+
     let temp = document.createElement("div");
     temp.innerHTML = html;
     temp
       .querySelectorAll("a")
-      .forEach((a) => a.replaceWith(`[url=${a.href}]${a.textContent}[/url]`));
+      .forEach((a) =>
+        a.replaceWith(`[url=${a.href}]${a.textContent.trim()}[/url]`)
+      );
     temp
       .querySelectorAll("b, strong")
       .forEach((b) => b.replaceWith(`[b]${b.textContent}[/b]`));
     temp
       .querySelectorAll("i, em")
       .forEach((i) => i.replaceWith(`[i]${i.textContent}[/i]`));
+
     return temp.innerHTML
       .replace(/<br\s*\/?>/gi, "\n")
       .replace(/<[^>]+>/g, "")
@@ -2663,4 +2691,3 @@ async function triggerShockwave() {
 
   toast(`⚡ SHOCKWAVE: Forced ${count} Elements`);
 }
-  

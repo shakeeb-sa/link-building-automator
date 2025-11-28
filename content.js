@@ -187,10 +187,12 @@ function getFieldType(el) {
   // 2. USERNAME (MOVED UP! Critical for WordPress)
   // WordPress uses "log", "user_login", "signup_username"
   if (
-      /user.?name|login|user_login|log\b|signup_username|handle|alias/i.test(str) &&
-      !/email|e-mail/i.test(el.name) // Safety: If name is explicitly "user_email", it's not a username
+    /user.?name|login|user_login|log\b|signup_username|handle|alias/i.test(
+      str
+    ) &&
+    !/email|e-mail/i.test(el.name) // Safety: If name is explicitly "user_email", it's not a username
   ) {
-      return "username";
+    return "username";
   }
 
   // 3. EMAIL
@@ -219,7 +221,8 @@ function getFieldType(el) {
 
   if (
     /category|cat.?id|type.?of.?post|section|classified/i.test(str) ||
-    el.id === "catId" || el.name === "catId"
+    el.id === "catId" ||
+    el.name === "catId"
   ) {
     return "category";
   }
@@ -228,7 +231,9 @@ function getFieldType(el) {
   if (/phone|mobile|tel|cell/i.test(str)) return "phone";
 
   if (
-    /address|street|location|city|state|province|zip|post.?code|country/i.test(str)
+    /address|street|location|city|state|province|zip|post.?code|country/i.test(
+      str
+    )
   ) {
     if (/city|town/i.test(str)) return "city";
     if (/state|province|region/i.test(str)) return "region";
@@ -664,78 +669,86 @@ document.addEventListener(
         // --- EXECUTE SEQUENCE ---
         // --- EXECUTE SEQUENCE ---
         (async () => {
-          // === NEW: CATEGORY-ONLY LOGIC (runs first, leaves everything else untouched) ===
+          // === NEW: MULTI-TARGET CATEGORY LOGIC v2 ===
           if (data.category) {
             const categorySelect = allSelects.find(
               (s) =>
                 getFieldType(s) === "category" ||
-                /cat.?id|category/i.test(s.id + s.name)
+                /cat.?id|category|section|type/i.test(s.id + s.name)
             );
 
             if (categorySelect) {
-              toast("Setting Category...");
-
+              // 1. Prepare the UI
               if (categorySelect.disabled) categorySelect.disabled = false;
               if (categorySelect.style.opacity === "0")
                 categorySelect.style.opacity = "1";
 
-              const target = data.category.trim().toLowerCase();
+              // 2. Build the Priority Search List
+              // Split user input by slash (/) or comma (,), trim whitespace, remove empty
+              const userTargets = data.category
+                .split(/[\/,]/)
+                .map((s) => s.trim().toLowerCase())
+                .filter((s) => s.length > 0);
+
+              // Your Hardcoded Safety Net
+              const fallbackTargets = [
+                "other",
+                "general",
+                "server",
+                "other services",
+                "miscellaneous",
+                "announcements",
+                "business",
+              ];
+
+              // Combine: User Wishes First -> Safety Net Second
+              const searchList = [...userTargets, ...fallbackTargets];
+
               let found = false;
+              let matchedTerm = "";
 
-              for (let i = 0; i < categorySelect.options.length; i++) {
-                const text = categorySelect.options[i].textContent
-                  .trim()
-                  .toLowerCase()
-                  .replace(/^[-\s>&nbsp;]+/g, "");
-
-                if (
-                  text.includes(target) ||
-                  target.includes(
-                    text.replace(/services|opportunities/gi, "").trim()
-                  )
-                ) {
-                  categorySelect.selectedIndex = i;
-                  fireEvents(categorySelect);
-                  toast(
-                    `Category → ${categorySelect.options[i].textContent.trim()}`
-                  );
-                  found = true;
-                  break;
-                }
-              }
-
-              if (!found) {
-                const fallbackTexts = [
-                  /other/i,
-                  /general/i,
-                  /everything else/i,
-                  /misc/i,
-                  /all categories/i,
-                ];
+              // 3. The Hunter Loop
+              // We look for the FIRST term in the list that exists in the dropdown
+              outerLoop: for (const term of searchList) {
                 for (let i = 0; i < categorySelect.options.length; i++) {
-                  const txt =
-                    categorySelect.options[i].textContent.toLowerCase();
-                  if (fallbackTexts.some((re) => re.test(txt))) {
+                  // Clean the option text (remove dashes, spaces, non-breaking spaces)
+                  const optText = categorySelect.options[i].textContent
+                    .toLowerCase()
+                    .replace(/^[-\s>&nbsp;]+/, "")
+                    .trim();
+
+                  // CHECK: Does "Health and Beauty" include "beauty"? YES.
+                  if (optText.includes(term)) {
                     categorySelect.selectedIndex = i;
                     fireEvents(categorySelect);
+
+                    // Visual Feedback
+                    categorySelect.style.border = "2px solid #00b894"; // Green border
                     toast(
-                      `Fallback → ${categorySelect.options[
-                        i
-                      ].textContent.trim()}`
+                      `📂 Category Matched: "${term}" → ${categorySelect.options[i].text}`
                     );
+
                     found = true;
-                    break;
+                    matchedTerm = term;
+                    break outerLoop; // Stop searching, we found a match
                   }
                 }
               }
 
-              if (!found && categorySelect.options.length > 2) {
-                categorySelect.selectedIndex = 2;
+              // 4. Final Fail-Safe (Random)
+              // If even the fallbacks ("Other", "General") failed, pick index 1 or 2 just to fill it.
+              if (!found && categorySelect.options.length > 1) {
+                // Avoid index 0 if it says "Select Category"
+                const safeIndex = categorySelect.options.length > 2 ? 2 : 1;
+                categorySelect.selectedIndex = safeIndex;
                 fireEvents(categorySelect);
-                toast("Picked random category");
+                toast(
+                  `⚠️ No match found. Auto-picked: ${categorySelect.options[safeIndex].text}`
+                );
               }
 
-              await wait(1200);
+              // Wait a moment for the site to load sub-fields (if any)
+              await wait(800);
             }
           }
           // === END OF CATEGORY LOGIC ===
@@ -886,15 +899,15 @@ document.addEventListener(
         }
       });
 
-            // ────────────────────────────────────────────────────────────
+      // ────────────────────────────────────────────────────────────
       //  ★★★ PENNY-PINCHER MODE v2 (Deep Scan) ★★★
       // ────────────────────────────────────────────────────────────
       const radioGroups = {};
-      
+
       // 1. Group all visible radio buttons by Name
       document.querySelectorAll('input[type="radio"]').forEach((rb) => {
         if (rb.disabled || rb.offsetParent === null) return;
-        const name = rb.name || "orphan_" + Math.random(); 
+        const name = rb.name || "orphan_" + Math.random();
         if (!radioGroups[name]) radioGroups[name] = [];
         radioGroups[name].push(rb);
       });
@@ -907,24 +920,24 @@ document.addEventListener(
         group.forEach((rb) => {
           // --- STEP A: DEEP TEXT EXTRACTION ---
           let text = "";
-          
+
           // 1. Check explicit <label> tag
           if (rb.id) {
             const labelNode = document.querySelector(`label[for="${rb.id}"]`);
             if (labelNode) text += " " + labelNode.textContent;
           }
-          
+
           // 2. Check Immediate Parent Text (e.g. <label><input> Text</label>)
           if (rb.parentElement) text += " " + rb.parentElement.textContent;
 
           // 3. CRITICAL FIX: Check Grandparent/Container Text
           // This solves the "div.upay_itemform" issue where text is a sibling of the parent span
-          const container = rb.closest('div, li, td, tr');
+          const container = rb.closest("div, li, td, tr");
           if (container) {
-             // We only take the container text if it's not HUGE (avoid reading whole page)
-             if (container.innerText.length < 400) {
-               text += " " + container.innerText;
-             }
+            // We only take the container text if it's not HUGE (avoid reading whole page)
+            if (container.innerText.length < 400) {
+              text += " " + container.innerText;
+            }
           }
 
           // Normalize
@@ -936,10 +949,10 @@ document.addEventListener(
           // ☠️ DANGER: MONEY PATTERNS
           // Matches: 20USD, $5, 5 USD, 5 + 5, Premium, Highlight, Pack
           if (
-             /\$|usd|eur|gbp|aud|cad/.test(text) ||     // Currency symbols
-             /\b\d+\s?usd/i.test(text) ||               // "20USD"
-             /premium|highlight|featured|pack/i.test(text) || // Upsell keywords
-             /best deal|upay/i.test(text)               // Aggressive marketing
+            /\$|usd|eur|gbp|aud|cad/.test(text) || // Currency symbols
+            /\b\d+\s?usd/i.test(text) || // "20USD"
+            /premium|highlight|featured|pack/i.test(text) || // Upsell keywords
+            /best deal|upay/i.test(text) // Aggressive marketing
           ) {
             score -= 100;
           }
@@ -947,18 +960,18 @@ document.addEventListener(
           // 🛡️ SAFETY: FREE / DECLINE PATTERNS
           // Matches: "No,thanks", "Free ad", "Standard", "0.00"
           if (
-             /no,?\s?thanks/i.test(text) ||   // "No,thanks"
-             /i do not want/i.test(text) ||   // "I do not want extra exposure"
-             /free ad/i.test(text) ||         // "submit a free ad"
-             /basic|standard/i.test(text) ||  // Standard tiers
-             /\b0(\.00)?\s?(usd|\$)/i.test(text) // 0 USD
+            /no,?\s?thanks/i.test(text) || // "No,thanks"
+            /i do not want/i.test(text) || // "I do not want extra exposure"
+            /free ad/i.test(text) || // "submit a free ad"
+            /basic|standard/i.test(text) || // Standard tiers
+            /\b0(\.00)?\s?(usd|\$)/i.test(text) // 0 USD
           ) {
             score += 100;
           }
-          
+
           // If this specific option is checked by default AND costs money, we must nuke it.
           // (Score calculation handles the selection, but we note it for debugging)
-          
+
           if (score > highestScore) {
             highestScore = score;
             bestCandidate = rb;
@@ -969,17 +982,17 @@ document.addEventListener(
         // Only click if we found a candidate and it's not already checked
         // OR if the currently checked item is "Dangerous" (negative score)
         if (bestCandidate) {
-             // If the best candidate is already checked, we are good. 
-             // If not, we switch to it.
-             if (!bestCandidate.checked) {
-                bestCandidate.click();
-                bestCandidate.checked = true;
-                bestCandidate.dispatchEvent(new Event("change", { bubbles: true }));
-                // Visual confirmation for the user
-                bestCandidate.style.boxShadow = "0 0 0 4px #00b894"; // Green Ring
-                toast("🛡️ Switched to Free Option");
-                checked++;
-             }
+          // If the best candidate is already checked, we are good.
+          // If not, we switch to it.
+          if (!bestCandidate.checked) {
+            bestCandidate.click();
+            bestCandidate.checked = true;
+            bestCandidate.dispatchEvent(new Event("change", { bubbles: true }));
+            // Visual confirmation for the user
+            bestCandidate.style.boxShadow = "0 0 0 4px #00b894"; // Green Ring
+            toast("🛡️ Switched to Free Option");
+            checked++;
+          }
         }
       });
 
@@ -1059,7 +1072,19 @@ document.addEventListener("focusin", async (e) => {
 
   // Filter unwanted elements
   if (!["INPUT", "TEXTAREA", "SELECT"].includes(input.tagName)) return;
-  if (["submit", "button", "image", "reset", "hidden", "file", "checkbox", "radio"].includes(input.type)) return;
+  if (
+    [
+      "submit",
+      "button",
+      "image",
+      "reset",
+      "hidden",
+      "file",
+      "checkbox",
+      "radio",
+    ].includes(input.type)
+  )
+    return;
 
   // Prevent loop if already active
   if (activeMenuInput === input && suggestionBox) return;
@@ -1104,14 +1129,18 @@ function createSmartMenu(input, data) {
     { key: "lastName", label: "📝 Last Name", typeMatch: ["lastName"] },
     { key: "website", label: "🔗 Website URL", typeMatch: ["website"] },
     { key: "company", label: "🏢 Company", typeMatch: ["company"] },
-    { key: "title", label: "🏷️ Title / Subject", typeMatch: ["title", "subject"] },
+    {
+      key: "title",
+      label: "🏷️ Title / Subject",
+      typeMatch: ["title", "subject"],
+    },
     { key: "phone", label: "📞 Phone", typeMatch: ["phone", "fax"] },
     { key: "address", label: "📍 Address", typeMatch: ["address"] },
     { key: "city", label: "🏙️ City", typeMatch: ["city"] },
     { key: "zip", label: "📮 Zip / Postal", typeMatch: ["zip"] },
     { key: "region", label: "🗺️ State / Region", typeMatch: ["region"] },
     { key: "country", label: "🏳️ Country", typeMatch: ["country"] },
-    { key: "category", label: "📂 Category", typeMatch: ["category"] }
+    { key: "category", label: "📂 Category", typeMatch: ["category"] },
   ];
 
   // SORT: Prioritize the detected type
@@ -1124,9 +1153,12 @@ function createSmartMenu(input, data) {
   // Create Container
   suggestionBox = document.createElement("div");
   suggestionBox.className = "llb-suggestion";
-  
+
   // Header
-  const confidenceLabel = detectedType !== "unknown" ? `Detected: ${detectedType.toUpperCase()}` : "Select Data";
+  const confidenceLabel =
+    detectedType !== "unknown"
+      ? `Detected: ${detectedType.toUpperCase()}`
+      : "Select Data";
   suggestionBox.innerHTML = `
     <div class="llb-header" style="display: flex; justify-content: space-between; align-items: center;">
         <span>⚡ ${confidenceLabel}</span>
@@ -1134,12 +1166,14 @@ function createSmartMenu(input, data) {
     </div>`;
 
   // Close Button Logic
-  suggestionBox.querySelector("#llb-close-btn").addEventListener("click", (e) => {
-    e.stopPropagation();
-    suggestionBox.remove();
-    suggestionBox = null;
-    activeMenuInput = null;
-  });
+  suggestionBox
+    .querySelector("#llb-close-btn")
+    .addEventListener("click", (e) => {
+      e.stopPropagation();
+      suggestionBox.remove();
+      suggestionBox = null;
+      activeMenuInput = null;
+    });
 
   // Render Data Items
   fields.forEach((f) => {
@@ -1151,12 +1185,12 @@ function createSmartMenu(input, data) {
     const isMatch = f.typeMatch.includes(detectedType);
     const item = document.createElement("div");
     item.className = "llb-item";
-    
+
     // Highlight the Best Match
     if (isMatch) {
-        item.style.background = "#e3f2fd";
-        item.style.borderLeft = "4px solid #2196f3";
-        item.innerHTML = `
+      item.style.background = "#e3f2fd";
+      item.style.borderLeft = "4px solid #2196f3";
+      item.innerHTML = `
           <div style="width:100%">
             <div style="display:flex; justify-content:space-between; align-items:center;">
                <strong>${f.label}</strong>
@@ -1165,11 +1199,12 @@ function createSmartMenu(input, data) {
             <small style="color:#333; font-weight:500;">${display}</small>
           </div>`;
     } else {
-        item.innerHTML = `<strong>${f.label}</strong><small>${display}</small>`;
+      item.innerHTML = `<strong>${f.label}</strong><small>${display}</small>`;
     }
 
     // Click to Fill
-    item.onmousedown = (e) => { // Use mousedown to prevent focus loss issues
+    item.onmousedown = (e) => {
+      // Use mousedown to prevent focus loss issues
       e.preventDefault();
       e.stopPropagation();
       smartFill(input, data[f.key]);
@@ -1182,12 +1217,15 @@ function createSmartMenu(input, data) {
   });
 
   // Render Fake Generator Option
-  const fakeLabel = detectedType !== "unknown" ? `Generate Fake ${detectedType}` : "Generate Fake Data";
+  const fakeLabel =
+    detectedType !== "unknown"
+      ? `Generate Fake ${detectedType}`
+      : "Generate Fake Data";
   const fakeItem = document.createElement("div");
   fakeItem.className = "llb-item";
   fakeItem.style.background = "#fff0f0";
   fakeItem.innerHTML = `<strong>🎲 ${fakeLabel}</strong>`;
-  
+
   fakeItem.onmousedown = (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -1207,18 +1245,20 @@ function createSmartMenu(input, data) {
   // Smart Positioning
   const rect = input.getBoundingClientRect();
   const topPos = window.scrollY + rect.bottom + 5;
-  
+
   if (topPos + 350 > document.body.scrollHeight) {
-      // Flip Up if near bottom
-      suggestionBox.style.top = `${window.scrollY + rect.top - suggestionBox.offsetHeight - 5}px`;
+    // Flip Up if near bottom
+    suggestionBox.style.top = `${
+      window.scrollY + rect.top - suggestionBox.offsetHeight - 5
+    }px`;
   } else {
-      suggestionBox.style.top = `${topPos}px`;
+    suggestionBox.style.top = `${topPos}px`;
   }
-  
+
   // Keep within left bounds
   let leftPos = window.scrollX + rect.left;
   if (leftPos + 300 > window.innerWidth) {
-      leftPos = window.innerWidth - 310;
+    leftPos = window.innerWidth - 310;
   }
   suggestionBox.style.left = `${leftPos}px`;
 }
@@ -1262,16 +1302,16 @@ document.addEventListener("dblclick", (e) => {
         e.stopPropagation();
 
         currentRightClickTarget = e.target;
-        lastRightClickTime = 0; 
+        lastRightClickTime = 0;
 
         // ➤ JOB 1: TEXT MENU (Ctrl + Double Right Click)
         if (e.ctrlKey) {
-          const isOverride = e.shiftKey; 
+          const isOverride = e.shiftKey;
           if (isOverride) {
-             toast("⚙️ Opening Menu (Override)...");
-             createOverlayMenu(e.clientX, e.clientY, true);
+            toast("⚙️ Opening Menu (Override)...");
+            createOverlayMenu(e.clientX, e.clientY, true);
           } else {
-             checkMemoryAndExecute(e.clientX, e.clientY);
+            checkMemoryAndExecute(e.clientX, e.clientY);
           }
           return;
         }
@@ -1296,65 +1336,101 @@ document.addEventListener("dblclick", (e) => {
   // --- MEMORY LOGIC ---
   function checkMemoryAndExecute(x, y) {
     const domain = window.location.hostname;
-    
+
     // UPDATED: Read from LOCAL storage and look for 'current_flat_data'
-    chrome.storage.local.get(["current_flat_data", `pref_${domain}`], (data) => {
+    chrome.storage.local.get(
+      ["current_flat_data", `pref_${domain}`],
+      (data) => {
         const savedType = data[`pref_${domain}`];
         // EXTRACT MASTER HTML FROM NEW STRUCTURE
         const master = data.current_flat_data?.masterHTML || "";
 
         if (savedType && master) {
-            toast(`⚡ Auto-Pasting (${savedType})...`);
-            
-            let content = "";
-            let isRich = false;
+          toast(`⚡ Auto-Pasting (${savedType})...`);
 
-            if (savedType === "HTML Code (Clean)") content = cleanHtml(master);
-            else if (savedType === "Markdown (Inline)") content = toMarkdown(master);
-            else if (savedType === "BBCode") content = toBBCode(master);
-            else if (savedType === "Markdown (Reference)") content = toReferenceMarkdown(master);
-            else if (savedType === "Rich Text") { content = master; isRich = true; }
-            else {
-                createOverlayMenu(x, y, false);
-                return;
-            }
-            handleSnippetSelection(content, isRich, false);
+          let content = "";
+          let isRich = false;
 
-        } else {
-            toast("⚡ Opening Text Menu...");
+          if (savedType === "HTML Code (Clean)") content = cleanHtml(master);
+          else if (savedType === "Markdown (Inline)")
+            content = toMarkdown(master);
+          else if (savedType === "BBCode") content = toBBCode(master);
+          else if (savedType === "Markdown (Reference)")
+            content = toReferenceMarkdown(master);
+          else if (savedType === "Rich Text") {
+            content = master;
+            isRich = true;
+          } else {
             createOverlayMenu(x, y, false);
+            return;
+          }
+          handleSnippetSelection(content, isRich, false);
+        } else {
+          toast("⚡ Opening Text Menu...");
+          createOverlayMenu(x, y, false);
         }
-    });
+      }
+    );
   }
 
   // --- CONVERSION ENGINES (Unchanged) ---
-  function cleanHtml(html) { return html.replace(/^\s*<p[^>]*>/i, "").replace(/<\/p>\s*$/i, ""); }
+  function cleanHtml(html) {
+    return html.replace(/^\s*<p[^>]*>/i, "").replace(/<\/p>\s*$/i, "");
+  }
   function toMarkdown(html) {
-    let temp = document.createElement("div"); temp.innerHTML = html;
-    temp.querySelectorAll("a").forEach((a) => a.replaceWith(`[${a.textContent}](${a.href})`));
-    temp.querySelectorAll("b, strong").forEach((b) => b.replaceWith(`**${b.textContent}**`));
-    temp.querySelectorAll("i, em").forEach((i) => i.replaceWith(`*${i.textContent}*`));
+    let temp = document.createElement("div");
+    temp.innerHTML = html;
+    temp
+      .querySelectorAll("a")
+      .forEach((a) => a.replaceWith(`[${a.textContent}](${a.href})`));
+    temp
+      .querySelectorAll("b, strong")
+      .forEach((b) => b.replaceWith(`**${b.textContent}**`));
+    temp
+      .querySelectorAll("i, em")
+      .forEach((i) => i.replaceWith(`*${i.textContent}*`));
     let text = temp.innerHTML.replace(/<br\s*\/?>/gi, "\n");
     return text.replace(/<[^>]+>/g, "").trim();
   }
   function toReferenceMarkdown(html) {
-    let temp = document.createElement("div"); temp.innerHTML = html;
-    let refs = []; let counter = 1;
+    let temp = document.createElement("div");
+    temp.innerHTML = html;
+    let refs = [];
+    let counter = 1;
     temp.querySelectorAll("a").forEach((a) => {
       const currentRef = counter++;
       a.replaceWith(`[${a.textContent}][${currentRef}]`);
       refs.push(`[${currentRef}]: ${a.href}`);
     });
-    temp.querySelectorAll("b, strong").forEach((b) => b.replaceWith(`**${b.textContent}**`));
-    temp.querySelectorAll("i, em").forEach((i) => i.replaceWith(`*${i.textContent}*`));
-    return temp.innerHTML.replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "").trim() + (refs.length ? "\n\n" + refs.join("\n") : "");
+    temp
+      .querySelectorAll("b, strong")
+      .forEach((b) => b.replaceWith(`**${b.textContent}**`));
+    temp
+      .querySelectorAll("i, em")
+      .forEach((i) => i.replaceWith(`*${i.textContent}*`));
+    return (
+      temp.innerHTML
+        .replace(/<br\s*\/?>/gi, "\n")
+        .replace(/<[^>]+>/g, "")
+        .trim() + (refs.length ? "\n\n" + refs.join("\n") : "")
+    );
   }
   function toBBCode(html) {
-    let temp = document.createElement("div"); temp.innerHTML = html;
-    temp.querySelectorAll("a").forEach((a) => a.replaceWith(`[url=${a.href}]${a.textContent}[/url]`));
-    temp.querySelectorAll("b, strong").forEach((b) => b.replaceWith(`[b]${b.textContent}[/b]`));
-    temp.querySelectorAll("i, em").forEach((i) => i.replaceWith(`[i]${i.textContent}[/i]`));
-    return temp.innerHTML.replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "").trim();
+    let temp = document.createElement("div");
+    temp.innerHTML = html;
+    temp
+      .querySelectorAll("a")
+      .forEach((a) => a.replaceWith(`[url=${a.href}]${a.textContent}[/url]`));
+    temp
+      .querySelectorAll("b, strong")
+      .forEach((b) => b.replaceWith(`[b]${b.textContent}[/b]`));
+    temp
+      .querySelectorAll("i, em")
+      .forEach((i) => i.replaceWith(`[i]${i.textContent}[/i]`));
+    return temp.innerHTML
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<[^>]+>/g, "")
+      .trim();
   }
 
   // --- UPGRADED MENU FUNCTION ---
@@ -1362,98 +1438,150 @@ document.addEventListener("dblclick", (e) => {
     removeOverlayMenu();
 
     // UPDATED: Read from LOCAL storage
-    chrome.storage.local.get(["current_flat_data", `pref_${window.location.hostname}`], (result) => {
-      // EXTRACT MASTER HTML
-      const master = result.current_flat_data?.masterHTML || "";
-      const currentPref = result[`pref_${window.location.hostname}`];
+    chrome.storage.local.get(
+      ["current_flat_data", `pref_${window.location.hostname}`],
+      (result) => {
+        // EXTRACT MASTER HTML
+        const master = result.current_flat_data?.masterHTML || "";
+        const currentPref = result[`pref_${window.location.hostname}`];
 
-      if (!master) {
-        toast("⚠️ No Source HTML found. Save in Popup first.");
-        return;
-      }
+        if (!master) {
+          toast("⚠️ No Source HTML found. Save in Popup first.");
+          return;
+        }
 
-      const itemsToRender = [
-        { text: cleanHtml(master), label: "HTML Code (Clean)", isRich: false },
-        { text: toMarkdown(master), label: "Markdown (Inline)", isRich: false },
-        { text: toBBCode(master), label: "BBCode", isRich: false },
-        { text: toReferenceMarkdown(master), label: "Markdown (Reference)", isRich: false },
-        { text: master, label: "Rich Text", isRich: true },
-      ];
+        const itemsToRender = [
+          {
+            text: cleanHtml(master),
+            label: "HTML Code (Clean)",
+            isRich: false,
+          },
+          {
+            text: toMarkdown(master),
+            label: "Markdown (Inline)",
+            isRich: false,
+          },
+          { text: toBBCode(master), label: "BBCode", isRich: false },
+          {
+            text: toReferenceMarkdown(master),
+            label: "Markdown (Reference)",
+            isRich: false,
+          },
+          { text: master, label: "Rich Text", isRich: true },
+        ];
 
-      const menu = document.createElement("div");
-      menu.id = "qtf-overlay-menu";
+        const menu = document.createElement("div");
+        menu.id = "qtf-overlay-menu";
 
-      Object.assign(menu.style, {
-        position: "fixed", top: y + "px", left: x + "px", zIndex: "2147483648",
-        backgroundColor: "#fff", border: "1px solid #aaa", boxShadow: "0 10px 30px rgba(0,0,0,0.4)",
-        borderRadius: "8px", minWidth: "260px", fontFamily: "Segoe UI, sans-serif",
-        fontSize: "13px", color: "#333", textAlign: "left", padding: "5px 0",
-      });
+        Object.assign(menu.style, {
+          position: "fixed",
+          top: y + "px",
+          left: x + "px",
+          zIndex: "2147483648",
+          backgroundColor: "#fff",
+          border: "1px solid #aaa",
+          boxShadow: "0 10px 30px rgba(0,0,0,0.4)",
+          borderRadius: "8px",
+          minWidth: "260px",
+          fontFamily: "Segoe UI, sans-serif",
+          fontSize: "13px",
+          color: "#333",
+          textAlign: "left",
+          padding: "5px 0",
+        });
 
-      const header = document.createElement("div");
-      header.style.padding = "8px 15px"; header.style.background = "#f8f9fa";
-      header.style.borderBottom = "1px solid #eee"; header.style.fontWeight = "bold";
-      header.innerText = "Select Format:";
-      menu.appendChild(header);
+        const header = document.createElement("div");
+        header.style.padding = "8px 15px";
+        header.style.background = "#f8f9fa";
+        header.style.borderBottom = "1px solid #eee";
+        header.style.fontWeight = "bold";
+        header.innerText = "Select Format:";
+        menu.appendChild(header);
 
-      itemsToRender.forEach((item) => {
-        const menuEl = document.createElement("div");
-        menuEl.className = "qtf-item";
-        const isSaved = currentPref === item.label;
-        if (isSaved) menuEl.style.background = "#e8f5e9";
+        itemsToRender.forEach((item) => {
+          const menuEl = document.createElement("div");
+          menuEl.className = "qtf-item";
+          const isSaved = currentPref === item.label;
+          if (isSaved) menuEl.style.background = "#e8f5e9";
 
-        let previewText = item.isRich ? "(Rich Text Content)" : item.text;
+          let previewText = item.isRich ? "(Rich Text Content)" : item.text;
 
-        menuEl.innerHTML = `
+          menuEl.innerHTML = `
         <div style="display:flex; justify-content:space-between;">
-            <span style="font-weight:bold; color:${item.isRich ? "#e67e22" : "#2ecc71"}; font-size:11px;">${item.label}</span>
-            ${isSaved ? '<span style="font-size:10px; color:#27ae60;">(Saved)</span>' : ''}
+            <span style="font-weight:bold; color:${
+              item.isRich ? "#e67e22" : "#2ecc71"
+            }; font-size:11px;">${item.label}</span>
+            ${
+              isSaved
+                ? '<span style="font-size:10px; color:#27ae60;">(Saved)</span>'
+                : ""
+            }
         </div>
         <div style="color:#555; font-size:12px; font-family: monospace; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width: 230px;">
             ${escapeHtml(previewText)}
         </div>`;
 
-        Object.assign(menuEl.style, {
-          padding: "8px 15px", cursor: "pointer", borderBottom: "1px solid #f0f0f0", transition: "background 0.1s",
+          Object.assign(menuEl.style, {
+            padding: "8px 15px",
+            cursor: "pointer",
+            borderBottom: "1px solid #f0f0f0",
+            transition: "background 0.1s",
+          });
+
+          if (!isSaved) {
+            menuEl.onmouseenter = () =>
+              (menuEl.style.backgroundColor = "#f0fcf0");
+            menuEl.onmouseleave = () => (menuEl.style.backgroundColor = "#fff");
+          }
+
+          menuEl.onmousedown = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const shouldRemember = rememberCheckbox.checked;
+            handleSnippetSelection(
+              item.text,
+              item.isRich,
+              shouldRemember,
+              item.label
+            );
+          };
+          menu.appendChild(menuEl);
         });
 
-        if (!isSaved) {
-            menuEl.onmouseenter = () => (menuEl.style.backgroundColor = "#f0fcf0");
-            menuEl.onmouseleave = () => (menuEl.style.backgroundColor = "#fff");
-        }
+        const footer = document.createElement("div");
+        Object.assign(footer.style, {
+          padding: "10px 15px",
+          background: "#f1f2f6",
+          borderTop: "1px solid #ccc",
+          fontSize: "12px",
+          display: "flex",
+          alignItems: "center",
+        });
 
-        menuEl.onmousedown = (e) => {
-          e.preventDefault(); e.stopPropagation();
-          const shouldRemember = rememberCheckbox.checked;
-          handleSnippetSelection(item.text, item.isRich, shouldRemember, item.label);
-        };
-        menu.appendChild(menuEl);
-      });
+        const rememberCheckbox = document.createElement("input");
+        rememberCheckbox.type = "checkbox";
+        rememberCheckbox.id = "llb-remember-pref";
+        rememberCheckbox.style.marginRight = "8px";
+        if (currentPref) rememberCheckbox.checked = true;
 
-      const footer = document.createElement("div");
-      Object.assign(footer.style, {
-          padding: "10px 15px", background: "#f1f2f6", borderTop: "1px solid #ccc",
-          fontSize: "12px", display: "flex", alignItems: "center"
-      });
+        const label = document.createElement("label");
+        label.htmlFor = "llb-remember-pref";
+        label.innerText = `Remember for ${window.location.hostname}`;
+        label.style.cursor = "pointer";
 
-      const rememberCheckbox = document.createElement("input");
-      rememberCheckbox.type = "checkbox"; rememberCheckbox.id = "llb-remember-pref";
-      rememberCheckbox.style.marginRight = "8px";
-      if (currentPref) rememberCheckbox.checked = true;
+        footer.appendChild(rememberCheckbox);
+        footer.appendChild(label);
+        menu.appendChild(footer);
 
-      const label = document.createElement("label");
-      label.htmlFor = "llb-remember-pref"; label.innerText = `Remember for ${window.location.hostname}`;
-      label.style.cursor = "pointer";
+        document.body.appendChild(menu);
 
-      footer.appendChild(rememberCheckbox); footer.appendChild(label);
-      menu.appendChild(footer);
-
-      document.body.appendChild(menu);
-      
-      const rect = menu.getBoundingClientRect();
-      if (rect.right > window.innerWidth) menu.style.left = (window.innerWidth - rect.width - 20) + "px";
-      if (rect.bottom > window.innerHeight) menu.style.top = (window.innerHeight - rect.height - 20) + "px";
-    });
+        const rect = menu.getBoundingClientRect();
+        if (rect.right > window.innerWidth)
+          menu.style.left = window.innerWidth - rect.width - 20 + "px";
+        if (rect.bottom > window.innerHeight)
+          menu.style.top = window.innerHeight - rect.height - 20 + "px";
+      }
+    );
   }
 
   function removeOverlayMenu() {
@@ -1463,36 +1591,50 @@ document.addEventListener("dblclick", (e) => {
 
   function escapeHtml(text) {
     if (!text) return "";
-    return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    return text
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
   }
 
   function handleSnippetSelection(text, isRich, shouldRemember, typeLabel) {
     removeOverlayMenu();
 
     if (shouldRemember && typeLabel) {
-        const domain = window.location.hostname;
-        // UPDATED: Save to LOCAL storage
-        chrome.storage.local.set({ [`pref_${domain}`]: typeLabel }, () => {
-            toast(`💾 Saved preference: ${typeLabel}`);
-        });
+      const domain = window.location.hostname;
+      // UPDATED: Save to LOCAL storage
+      chrome.storage.local.set({ [`pref_${domain}`]: typeLabel }, () => {
+        toast(`💾 Saved preference: ${typeLabel}`);
+      });
     } else if (!shouldRemember && typeLabel) {
-        const domain = window.location.hostname;
-        chrome.storage.local.remove(`pref_${domain}`);
+      const domain = window.location.hostname;
+      chrome.storage.local.remove(`pref_${domain}`);
     }
 
     if (isRich) {
       try {
         const blobHtml = new Blob([text], { type: "text/html" });
-        const blobText = new Blob([text.replace(/<[^>]*>?/gm, "")], { type: "text/plain" });
-        const data = [new ClipboardItem({ ["text/html"]: blobHtml, ["text/plain"]: blobText })];
+        const blobText = new Blob([text.replace(/<[^>]*>?/gm, "")], {
+          type: "text/plain",
+        });
+        const data = [
+          new ClipboardItem({
+            ["text/html"]: blobHtml,
+            ["text/plain"]: blobText,
+          }),
+        ];
         navigator.clipboard.write(data);
-      } catch (e) { navigator.clipboard.writeText(text); }
+      } catch (e) {
+        navigator.clipboard.writeText(text);
+      }
     } else {
       navigator.clipboard.writeText(text);
     }
 
     if (typeof toast === "function") toast("✅ Pasted!");
-    if (currentRightClickTarget) insertSnippetLogic(currentRightClickTarget, text, isRich);
+    if (currentRightClickTarget)
+      insertSnippetLogic(currentRightClickTarget, text, isRich);
   }
 
   function insertSnippetLogic(target, text, isRich) {
@@ -1504,7 +1646,10 @@ document.addEventListener("dblclick", (e) => {
     const success = document.execCommand("insertText", false, text);
     if (success) return;
     if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") {
-      const proto = target.tagName === "INPUT" ? window.HTMLInputElement.prototype : window.HTMLTextAreaElement.prototype;
+      const proto =
+        target.tagName === "INPUT"
+          ? window.HTMLInputElement.prototype
+          : window.HTMLTextAreaElement.prototype;
       const nativeSetter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
       if (nativeSetter) nativeSetter.call(target, target.value + text);
       else target.value += text;
@@ -1512,28 +1657,61 @@ document.addEventListener("dblclick", (e) => {
       target.dispatchEvent(new Event("change", { bubbles: true }));
     }
   }
-  
-    // -------------------------------------------------------
+
+  // -------------------------------------------------------
   // 🚀 THE ULTIMATE AUTO-SUBMITTER v2
   // -------------------------------------------------------
   function triggerAutoSubmit() {
     // 1. THE EXPANDED DICTIONARY
     const submitKeywords = [
       // Standard
-      "submit", "save", "send", "post", "publish", 
+      "submit",
+      "save",
+      "send",
+      "post",
+      "publish",
       // Auth
-      "login", "log in", "signin", "sign in", 
-      "signup", "sign up", "register", "create account",
+      "login",
+      "log in",
+      "signin",
+      "sign in",
+      "signup",
+      "sign up",
+      "register",
+      "create account",
       // Ecommerce / Action
-      "checkout", "buy", "order", "pay", "add to cart",
+      "checkout",
+      "buy",
+      "order",
+      "pay",
+      "add to cart",
       // Flow
-      "next", "continue", "proceed", "finish", "done", "complete",
-      "go", "let's go", "get started", "start",
+      "next",
+      "continue",
+      "proceed",
+      "finish",
+      "done",
+      "complete",
+      "go",
+      "let's go",
+      "get started",
+      "start",
       // Listings / Content
-      "post ad", "post listing", "create listing", "add listing",
-      "create thread", "new thread", "post reply", "add comment",
-      "update profile", "save changes", "edit profile",
-      "activate", "confirm", "verify", "accept"
+      "post ad",
+      "post listing",
+      "create listing",
+      "add listing",
+      "create thread",
+      "new thread",
+      "post reply",
+      "add comment",
+      "update profile",
+      "save changes",
+      "edit profile",
+      "activate",
+      "confirm",
+      "verify",
+      "accept",
     ];
 
     // 2. SCAN THE DOM (Broad Selector)
@@ -1542,25 +1720,28 @@ document.addEventListener("dblclick", (e) => {
         'button, input[type="submit"], input[type="button"], a, div[role="button"], span[role="button"]'
       )
     ).filter((el) => {
-      
       // A. VISIBILITY CHECK
       // Must have size and be visible
-      if (!el.offsetParent || el.offsetWidth < 10 || el.offsetHeight < 10) return false;
+      if (!el.offsetParent || el.offsetWidth < 10 || el.offsetHeight < 10)
+        return false;
       if (getComputedStyle(el).visibility === "hidden") return false;
       if (el.disabled) return false;
 
       // B. TEXT MATCHING
       const text = (
-        el.textContent || 
-        el.value || 
-        el.getAttribute("aria-label") || 
-        el.title || 
+        el.textContent ||
+        el.value ||
+        el.getAttribute("aria-label") ||
+        el.title ||
         ""
-      ).toLowerCase().replace(/\s+/g, " ").trim(); // Normalizes "  Sign   Up  " to "sign up"
+      )
+        .toLowerCase()
+        .replace(/\s+/g, " ")
+        .trim(); // Normalizes "  Sign   Up  " to "sign up"
 
-      // Exact match or Contains match? 
+      // Exact match or Contains match?
       // We look for the keyword appearing inside the button text
-      const hasKeyword = submitKeywords.some(kw => text.includes(kw));
+      const hasKeyword = submitKeywords.some((kw) => text.includes(kw));
       if (!hasKeyword) return false;
 
       // C. EXCLUSION ZONES (Don't click Toolbar buttons)
@@ -1568,23 +1749,42 @@ document.addEventListener("dblclick", (e) => {
       if (parent) {
         const pClass = (parent.className || "").toLowerCase();
         const pId = (parent.id || "").toLowerCase();
-        const blacklist = ["mce", "cke", "tox", "editor", "toolbar", "format", "nav", "menu", "sidebar"];
-        
+        const blacklist = [
+          "mce",
+          "cke",
+          "tox",
+          "editor",
+          "toolbar",
+          "format",
+          "nav",
+          "menu",
+          "sidebar",
+        ];
+
         // If it's inside a text editor toolbar, ignore it
-        if (blacklist.some(term => pClass.includes(term) || pId.includes(term))) return false;
+        if (
+          blacklist.some((term) => pClass.includes(term) || pId.includes(term))
+        )
+          return false;
       }
 
       // D. SMART FILTER FOR LINKS (<a> tags)
       // If it's an <a> tag, it MUST look like a button (have a class) OR have very specific text
       if (el.tagName === "A") {
-         // If the link is just "Login" text with no class, it might be a nav link, not a form submit.
-         // We prefer buttons. But if it's "Create Thread" it's likely the main action.
-         const isStyled = (el.className || "").includes("btn") || (el.className || "").includes("button");
-         if (!isStyled && text.split(" ").length < 2 && !["submit", "save", "post"].includes(text)) {
-            // It's a single word link like "Home" or "News" (false positive protection)
-            // But we allow "Submit" even if unstyled.
-            return false; 
-         }
+        // If the link is just "Login" text with no class, it might be a nav link, not a form submit.
+        // We prefer buttons. But if it's "Create Thread" it's likely the main action.
+        const isStyled =
+          (el.className || "").includes("btn") ||
+          (el.className || "").includes("button");
+        if (
+          !isStyled &&
+          text.split(" ").length < 2 &&
+          !["submit", "save", "post"].includes(text)
+        ) {
+          // It's a single word link like "Home" or "News" (false positive protection)
+          // But we allow "Submit" even if unstyled.
+          return false;
+        }
       }
 
       return true;
@@ -1592,38 +1792,42 @@ document.addEventListener("dblclick", (e) => {
 
     // 3. SELECT THE BEST CANDIDATE
     if (candidates.length > 0) {
-      // Heuristic: The "Real" submit button is usually the LAST one in the DOM 
+      // Heuristic: The "Real" submit button is usually the LAST one in the DOM
       // (because forms come after headers/navs), or the one with "submit" type.
-      
+
       // Prioritize type="submit"
-      let target = candidates.find(c => c.type === "submit");
-      
+      let target = candidates.find((c) => c.type === "submit");
+
       // If no explicit submit button, take the last candidate found (usually bottom of form)
       if (!target) target = candidates[candidates.length - 1];
 
       // 4. VISUAL FEEDBACK & CLICK
       target.scrollIntoView({ behavior: "smooth", block: "center" });
-      
+
       // Flash Effect
       const originalBoxShadow = target.style.boxShadow;
       const originalTransition = target.style.transition;
-      
+
       target.style.transition = "all 0.2s";
-      target.style.boxShadow = "0 0 0 4px rgba(231, 76, 60, 0.8), 0 0 20px rgba(231, 76, 60, 0.4)";
+      target.style.boxShadow =
+        "0 0 0 4px rgba(231, 76, 60, 0.8), 0 0 20px rgba(231, 76, 60, 0.4)";
       target.style.transform = "scale(1.05)";
 
       setTimeout(() => {
         // CLICK!
         target.click();
-        
+
         // Cleanup styles
         target.style.transform = "";
         target.style.boxShadow = originalBoxShadow || "";
         target.style.transition = originalTransition || "";
-        
-        toast(`🚀 Triggered: "${target.textContent.trim().substring(0, 20) || "Submit"}"`);
+
+        toast(
+          `🚀 Triggered: "${
+            target.textContent.trim().substring(0, 20) || "Submit"
+          }"`
+        );
       }, 250); // Small delay so user sees what is being clicked
-      
     } else {
       toast("⚠️ No obvious 'Submit' action found.");
     }
@@ -2003,11 +2207,13 @@ function createGatewayMenu() {
     const blacklist = result.watchtower_domains;
     if (!blacklist || blacklist.length === 0) return; // Feature inactive if no file uploaded
 
-    const currentHost = window.location.hostname.replace(/^www\./, "").toLowerCase();
+    const currentHost = window.location.hostname
+      .replace(/^www\./, "")
+      .toLowerCase();
 
     // Check Exact Match or Subdomain Match
-    const isRestricted = blacklist.some(domain => 
-      currentHost === domain || currentHost.endsWith("." + domain)
+    const isRestricted = blacklist.some(
+      (domain) => currentHost === domain || currentHost.endsWith("." + domain)
     );
 
     if (isRestricted) {
@@ -2082,12 +2288,22 @@ function createGatewayMenu() {
   // 1. DOMAIN CHECK
   // We allow this to run inside IFRAMES (window.self !== window.top)
   // because that is where the email content actually lives.
-  const validDomains = ["fakemail.net", "temp-mail.org", "10minutemail.com", "emailondeck.com", "yopmail.com", "tempmail.plus", "aicrowd.com"]; // Added aicrowd for testing based on your screenshot
-  
+  const validDomains = [
+    "fakemail.net",
+    "temp-mail.org",
+    "10minutemail.com",
+    "emailondeck.com",
+    "yopmail.com",
+    "tempmail.plus",
+    "aicrowd.com",
+  ]; // Added aicrowd for testing based on your screenshot
+
   // We check document.referrer too because inside an iframe, the hostname might be different (e.g. about:blank or a cdn)
   // but the parent is the fake mail site.
-  const isTarget = validDomains.some(d => window.location.hostname.includes(d) || document.referrer.includes(d));
-  
+  const isTarget = validDomains.some(
+    (d) => window.location.hostname.includes(d) || document.referrer.includes(d)
+  );
+
   if (!isTarget) return;
 
   // 2. THE SCANNER
@@ -2096,27 +2312,43 @@ function createGatewayMenu() {
 
     // --- STRATEGY A: FIND CLICKABLE LINKS (<a> tags) ---
     // Keywords based on your screenshots: "confirm", "verify", "click here", "password"
-    const keywords = ["confirm", "verify", "activate", "validate", "click here", "set your password", "login details", "recover"];
+    const keywords = [
+      "confirm",
+      "verify",
+      "activate",
+      "validate",
+      "click here",
+      "set your password",
+      "login details",
+      "recover",
+    ];
     const links = Array.from(document.querySelectorAll("a"));
-    
+
     for (let link of links) {
       const text = (link.innerText || "").toLowerCase().trim();
       const href = (link.href || "").toLowerCase();
-      
-      if (href.includes("unsubscribe") || href.startsWith("javascript") || href === "") continue;
+
+      if (
+        href.includes("unsubscribe") ||
+        href.startsWith("javascript") ||
+        href === ""
+      )
+        continue;
 
       // 1. Check Text Matching
-      const textMatch = keywords.some(kw => text.includes(kw));
-      
+      const textMatch = keywords.some((kw) => text.includes(kw));
+
       // 2. Check URL Matching (Token/Key detection for WordPress style links)
       // Looks for: key=..., token=..., confirm=..., /verify/
-      const urlMatch = href.match(/key=|token=|code=|confirm|\/verify\/|action=rp/);
+      const urlMatch = href.match(
+        /key=|token=|code=|confirm|\/verify\/|action=rp/
+      );
 
       if (textMatch || urlMatch) {
         // Highlight the button visually (Like in your AICrowd screenshot)
         link.style.border = "4px solid #00b894";
         link.style.boxShadow = "0 0 20px #00b894";
-        
+
         showVerifierHUD("link", link.href, text || "Link");
         return;
       }
@@ -2140,12 +2372,12 @@ function createGatewayMenu() {
     const otpRegex = /\b(?!(?:19|20)\d{2})(?<!\d)(\d{4,8})(?!\d)\b/g;
     const matches = bodyText.match(otpRegex);
     if (matches && matches.length > 0) {
-       // Filter out port numbers or common false positives
-       const bestCode = matches.find(m => m !== "8080" && m !== "3000"); 
-       if (bestCode) {
-         navigator.clipboard.writeText(bestCode);
-         showVerifierHUD("otp", bestCode, "Code");
-       }
+      // Filter out port numbers or common false positives
+      const bestCode = matches.find((m) => m !== "8080" && m !== "3000");
+      if (bestCode) {
+        navigator.clipboard.writeText(bestCode);
+        showVerifierHUD("otp", bestCode, "Code");
+      }
     }
   };
 
@@ -2156,10 +2388,10 @@ function createGatewayMenu() {
   function showVerifierHUD(type, value, label) {
     // If we are in an iframe, we need to be careful with positioning.
     // We'll put it at the top of the iframe.
-    
+
     const hud = document.createElement("div");
     hud.id = "llb-verifier-hud";
-    
+
     let contentHtml = "";
     if (type === "link") {
       contentHtml = `
@@ -2187,10 +2419,18 @@ function createGatewayMenu() {
     `;
 
     Object.assign(hud.style, {
-      position: "fixed", top: "10px", right: "10px", zIndex: "2147483647",
-      background: "linear-gradient(135deg, #2d3436, #000000)", color: "white",
-      padding: "10px", borderRadius: "8px", boxShadow: "0 5px 15px rgba(0,0,0,0.3)",
-      fontFamily: "sans-serif", fontSize: "12px", maxWidth: "250px"
+      position: "fixed",
+      top: "10px",
+      right: "10px",
+      zIndex: "2147483647",
+      background: "linear-gradient(135deg, #2d3436, #000000)",
+      color: "white",
+      padding: "10px",
+      borderRadius: "8px",
+      boxShadow: "0 5px 15px rgba(0,0,0,0.3)",
+      fontFamily: "sans-serif",
+      fontSize: "12px",
+      maxWidth: "250px",
     });
 
     document.body.appendChild(hud);
@@ -2212,14 +2452,21 @@ document.addEventListener("mousedown", (e) => {
   shockwaveVisual = document.createElement("div");
   Object.assign(shockwaveVisual.style, {
     position: "fixed",
-    top: "0", left: "0", width: "0%", height: "5px",
-    backgroundColor: "#00b894", zIndex: "2147483647",
-    transition: "width 2s linear", boxShadow: "0 0 10px #00b894"
+    top: "0",
+    left: "0",
+    width: "0%",
+    height: "5px",
+    backgroundColor: "#00b894",
+    zIndex: "2147483647",
+    transition: "width 2s linear",
+    boxShadow: "0 0 10px #00b894",
   });
   document.body.appendChild(shockwaveVisual);
-  
+
   // Force reflow to enable transition
-  setTimeout(() => { if(shockwaveVisual) shockwaveVisual.style.width = "100%"; }, 10);
+  setTimeout(() => {
+    if (shockwaveVisual) shockwaveVisual.style.width = "100%";
+  }, 10);
 
   // 2. Start Timer
   shockwaveTimer = setTimeout(() => {
@@ -2267,7 +2514,7 @@ async function triggerShockwave() {
         if (label) text += " " + label.innerText;
       }
       // Grab text from the row/container div (Crucial for your screenshot)
-      const container = rb.closest('div, tr, li, label');
+      const container = rb.closest("div, tr, li, label");
       if (container) text += " " + container.innerText;
 
       text = text.toLowerCase();
@@ -2275,8 +2522,13 @@ async function triggerShockwave() {
       // --- SCORING ---
       let score = 0;
       // Kill Paid Options
-      if (/\$|usd|eur|gbp|price|cost|bill|pay|premium|highlight|featured|pack|deal/i.test(text)) score -= 500;
-      
+      if (
+        /\$|usd|eur|gbp|price|cost|bill|pay|premium|highlight|featured|pack|deal/i.test(
+          text
+        )
+      )
+        score -= 500;
+
       // Hunt Free Options
       if (/no,?\s?thanks/i.test(text)) score += 1000; // Priority #1
       if (/free|basic|standard|0\.00/i.test(text)) score += 500;
@@ -2289,9 +2541,8 @@ async function triggerShockwave() {
 
     // --- EXECUTION: BRUTAL FORCE ---
     if (bestCandidate) {
-      
       // 1. Uncheck all others physically
-      group.forEach(peer => {
+      group.forEach((peer) => {
         peer.checked = false;
         peer.removeAttribute("checked");
       });
@@ -2301,9 +2552,11 @@ async function triggerShockwave() {
       bestCandidate.setAttribute("checked", "checked");
 
       // 3. EVENT STORM (Fire everything to wake up the site's JS)
-      ["mousedown", "mouseup", "click", "input", "change"].forEach(evt => {
+      ["mousedown", "mouseup", "click", "input", "change"].forEach((evt) => {
         try {
-          bestCandidate.dispatchEvent(new Event(evt, { bubbles: true, cancelable: true }));
+          bestCandidate.dispatchEvent(
+            new Event(evt, { bubbles: true, cancelable: true })
+          );
         } catch (e) {}
       });
 
@@ -2311,11 +2564,12 @@ async function triggerShockwave() {
       // If the input is hidden, clicking it does nothing. We must click the wrapper.
       // We try the immediate parent (span) AND the container (div) just to be sure.
       if (bestCandidate.parentElement) bestCandidate.parentElement.click();
-      
+
       // Visual confirmation
-      const visualTarget = bestCandidate.closest('div') || bestCandidate.parentElement;
+      const visualTarget =
+        bestCandidate.closest("div") || bestCandidate.parentElement;
       if (visualTarget) visualTarget.style.boxShadow = "0 0 0 5px #00b894"; // Big Green Border
-      
+
       count++;
     }
   });
@@ -2325,8 +2579,13 @@ async function triggerShockwave() {
   // ============================================================
   document.querySelectorAll("input, textarea").forEach((el) => {
     if (el.disabled || el.readOnly || el.type === "hidden") return;
-    if (["checkbox", "radio", "file", "submit", "button", "image"].includes(el.type)) return;
-    
+    if (
+      ["checkbox", "radio", "file", "submit", "button", "image"].includes(
+        el.type
+      )
+    )
+      return;
+
     // Skip if user already typed something
     if (el.value && el.value.trim().length > 0) return;
 
@@ -2338,7 +2597,7 @@ async function triggerShockwave() {
     // Priority 2: Fake Data
     else valueToFill = generateFake(type);
     // Priority 3: Hard Fallback (Inject anything)
-    if (!valueToFill) valueToFill = "N/A"; 
+    if (!valueToFill) valueToFill = "N/A";
 
     smartFill(el, valueToFill);
     count++;
@@ -2352,20 +2611,20 @@ async function triggerShockwave() {
     if (el.selectedIndex > 0 && el.value !== "") return; // Skip if filled
 
     // 1. Try Random Valid Option
-    const valid = Array.from(el.options).filter(o => 
-        o.value !== "" && !/select|choose|none/i.test(o.text)
+    const valid = Array.from(el.options).filter(
+      (o) => o.value !== "" && !/select|choose|none/i.test(o.text)
     );
 
     if (valid.length > 0) {
-       const rand = valid[Math.floor(Math.random() * valid.length)];
-       el.value = rand.value; // Force Value
-       el.selectedIndex = rand.index; // Force Index
-       el.dispatchEvent(new Event("change", { bubbles: true }));
-       count++;
+      const rand = valid[Math.floor(Math.random() * valid.length)];
+      el.value = rand.value; // Force Value
+      el.selectedIndex = rand.index; // Force Index
+      el.dispatchEvent(new Event("change", { bubbles: true }));
+      count++;
     } else if (el.options.length > 1) {
-       el.selectedIndex = 1; // Desperation move
-       el.dispatchEvent(new Event("change", { bubbles: true }));
-       count++;
+      el.selectedIndex = 1; // Desperation move
+      el.dispatchEvent(new Event("change", { bubbles: true }));
+      count++;
     }
   });
 
@@ -2374,15 +2633,21 @@ async function triggerShockwave() {
   // ============================================================
   document.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
     if (cb.disabled || cb.checked) return;
-    
+
     // Broad regex to accept terms, age, privacy, etc.
-    const text = (cb.name + " " + (cb.getAttribute("aria-label")||"") + " " + (cb.closest("label")?.innerText||"")).toLowerCase();
-    
+    const text = (
+      cb.name +
+      " " +
+      (cb.getAttribute("aria-label") || "") +
+      " " +
+      (cb.closest("label")?.innerText || "")
+    ).toLowerCase();
+
     // We avoid "Delete" or "Unsubscribe" checkboxes, but check everything else
     if (!/delete|remove|unsubscribe/i.test(text)) {
-        cb.click();
-        cb.checked = true; // Double tap
-        count++;
+      cb.click();
+      cb.checked = true; // Double tap
+      count++;
     }
   });
 
@@ -2391,10 +2656,11 @@ async function triggerShockwave() {
   // ============================================================
   const fileInput = document.querySelector('input[type="file"]');
   if (fileInput) {
-      fileInput.scrollIntoView({behavior: "smooth", block: "center"});
-      fileInput.style.outline = "5px solid red";
-      setTimeout(() => fileInput.click(), 500); 
+    fileInput.scrollIntoView({ behavior: "smooth", block: "center" });
+    fileInput.style.outline = "5px solid red";
+    setTimeout(() => fileInput.click(), 500);
   }
 
   toast(`⚡ SHOCKWAVE: Forced ${count} Elements`);
 }
+  

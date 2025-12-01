@@ -581,161 +581,348 @@ document.addEventListener("DOMContentLoaded", () => {
   // 1. The Keyword Dictionary (Optimized for Slash-Separated Matching)
   const categoryKeywords = {
     "real estate/housing/property": [
-      "apartment",
-      "house",
-      "rent",
-      "lease",
+      "real estate",
+      "real-estate",
       "property",
+      "residential",
+      "commercial property",
+      "house",
+      "homes",
+      "home sale",
+      "buy house",
+      "sell house",
+      "apartment",
       "condo",
-      "estate",
+      "condominium",
+      "rent",
+      "rental",
+      "lease",
+      "mortgage",
       "realtor",
+      "realty",
       "broker",
+      "estate agent",
+      "property management",
       "housing",
+      "listing",
+      "open house",
       "bedroom",
       "bathroom",
     ],
     "automotive/cars/vehicles": [
       "car",
+      "cars",
       "vehicle",
-      "truck",
-      "repair",
+      "vehicles",
       "auto",
+      "automotive",
+      "car dealer",
+      "car dealership",
+      "used cars",
+      "new cars",
+      "car sale",
+      "sell my car",
+      "auto repair",
+      "mechanic",
+      "service center",
+      "oil change",
+      "tire shop",
       "tire",
       "engine",
-      "honda",
-      "toyota",
-      "bmw",
-      "sedan",
+      "transmission",
+      "car parts",
+      "detailer",
+      "tow",
+      "truck",
       "suv",
+      "sedan",
       "dealer",
     ],
     "technology/computer/internet": [
-      "software",
-      "app",
-      "digital",
-      "computer",
-      "web",
-      "seo",
-      "marketing",
+      "technology",
       "tech",
-      "data",
-      "server",
+      "software",
+      "software development",
+      "developer",
+      "web developer",
+      "web development",
+      "app",
+      "mobile app",
+      "app developer",
+      "website",
+      "web design",
       "hosting",
+      "server",
+      "cloud",
+      "saas",
+      "data",
+      "analytics",
+      "seo",
+      "search engine optimization",
+      "digital marketing",
+      "it support",
+      "computer",
+      "hardware",
+      "network",
       "internet",
-      "phone",
+      "email",
+      "cybersecurity",
     ],
     "health/beauty/fitness": [
-      "beauty",
-      "salon",
-      "makeup",
-      "skin",
-      "hair",
-      "care",
       "health",
       "medical",
       "clinic",
+      "doctor",
+      "dentist",
+      "dental",
+      "hospital",
+      "wellness",
       "fitness",
       "gym",
+      "personal trainer",
       "workout",
-      "doctor",
-      "dental",
+      "nutrition",
+      "diet",
       "spa",
+      "salon",
+      "beauty",
+      "cosmetics",
+      "makeup",
+      "skincare",
+      "skin care",
+      "hair",
+      "hair salon",
+      "massage",
+      "esthetician",
+      "clinic",
     ],
     "business/finance/services": [
-      "finance",
-      "consulting",
       "business",
-      "money",
-      "invest",
-      "loan",
-      "insurance",
+      "company",
+      "corporate",
+      "consulting",
+      "consultant",
+      "finance",
+      "financial",
+      "bank",
       "accounting",
+      "accountant",
       "tax",
-      "lawyer",
+      "tax service",
+      "investment",
+      "investment advisor",
+      "insurance",
+      "insurer",
+      "loan",
+      "mortgage broker",
       "legal",
+      "lawyer",
+      "attorney",
       "services",
       "agency",
+      "marketing agency",
       "office",
+      "b2b",
+      "small business",
     ],
     "shopping/fashion/retail": [
-      "sale",
-      "buy",
-      "store",
+      "shopping",
       "shop",
-      "discount",
-      "furniture",
+      "store",
+      "retail",
+      "ecommerce",
+      "e-commerce",
+      "online store",
       "fashion",
       "clothing",
+      "apparel",
+      "shoes",
       "jewelry",
-      "gift",
-      "retail",
+      "accessories",
+      "sale",
+      "discount",
+      "coupon",
       "order",
+      "catalog",
+      "boutique",
+      "gift shop",
+      "furniture",
+      "home goods",
     ],
     "travel/vacation/tourism": [
-      "hotel",
-      "flight",
-      "vacation",
       "travel",
+      "travel agent",
+      "vacation",
+      "holiday",
       "tour",
-      "trip",
+      "tourism",
+      "tour operator",
+      "hotel",
       "resort",
+      "flight",
+      "airline",
       "booking",
+      "car rental",
       "rental",
       "destination",
+      "cruise",
+      "travel guide",
+      "tourist",
+      "vacation rental",
     ],
     "education/learning/training": [
+      "education",
       "school",
-      "course",
-      "tutor",
-      "learn",
-      "class",
-      "training",
       "college",
       "university",
-      "student",
+      "course",
+      "online course",
+      "e-learning",
+      "training",
+      "tutor",
+      "tutoring",
+      "class",
+      "program",
       "degree",
+      "student",
+      "learning",
+      "certification",
+      "workshop",
+      "seminar",
+      "academy",
+      "teacher",
+      "coaching",
     ],
   };
 
   // 2. The Analyzer (Fixed: Word Boundaries)
   function autoSuggestCategory(text) {
-    // STOP if Locked
     if (isCatLocked) return;
 
-    // We use the raw text for Regex matching to preserve boundaries,
-    // but the flag 'i' handles case insensitivity.
-    let bestCategory = "";
-    let maxHits = 0;
+    // Helpers
+    const stopwords = new Set([
+      "the",
+      "and",
+      "a",
+      "an",
+      "of",
+      "in",
+      "on",
+      "for",
+      "to",
+      "with",
+      "by",
+      "at",
+      "from",
+      "is",
+      "are",
+      "or",
+      "that",
+      "this",
+      "it",
+      "as",
+      "be",
+      "was",
+      "were",
+      "has",
+      "have",
+    ]);
 
-    // Scan matches
-    for (const [catName, keywords] of Object.entries(categoryKeywords)) {
-      let hits = 0;
-      keywords.forEach((kw) => {
-        // 🛠️ FIX: Use Regex with Word Boundaries (\b)
-        // This prevents "classy" matching "class" or "career" matching "car"
-        const regex = new RegExp(`\\b${kw}\\b`, "i");
-        if (regex.test(text)) hits++;
-      });
+    const normalize = (s) =>
+      (s || "")
+        .toLowerCase()
+        .replace(/[’'`]/g, "") // remove curly quotes
+        .replace(/[^a-z0-9\s]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
 
-      if (hits > maxHits) {
-        maxHits = hits;
-        bestCategory = catName;
+    const tokens = normalize(text)
+      .split(" ")
+      .filter(Boolean)
+      .filter((t) => !stopwords.has(t));
+    if (tokens.length === 0) return;
+
+    // Build unigrams + bigrams
+    const unigrams = new Set(tokens);
+    const bigrams = new Set();
+    for (let i = 0; i < tokens.length - 1; i++)
+      bigrams.add(tokens[i] + " " + tokens[i + 1]);
+
+    // Simple fuzzy test (small Levenshtein, fast)
+    const smallEditMatch = (a, b) => {
+      if (!a || !b) return false;
+      if (Math.abs(a.length - b.length) > 1) return false;
+      // quick equal or includes
+      if (a === b || a.includes(b) || b.includes(a)) return true;
+      // tiny Levenshtein <=1
+      let i = 0,
+        j = 0,
+        edits = 0;
+      while (i < a.length && j < b.length) {
+        if (a[i] === b[j]) {
+          i++;
+          j++;
+        } else {
+          edits++;
+          if (edits > 1) return false;
+          if (a.length > b.length) i++;
+          else if (b.length > a.length) j++;
+          else {
+            i++;
+            j++;
+          }
+        }
       }
+      edits += a.length - i + (b.length - j);
+      return edits <= 1;
+    };
+
+    // Score categories
+    const scores = {};
+    for (const [catName, keywords] of Object.entries(categoryKeywords)) {
+      let score = 0;
+      for (const kw of keywords) {
+        const k = normalize(kw);
+        if (!k) continue;
+
+        // Phrase match (bigram or longer)
+        if (k.includes(" ")) {
+          if (bigrams.has(k)) score += 4; // strong boost for phrase
+          else if (tokens.join(" ").includes(` ${k} `)) score += 2;
+        } else {
+          // unigram matches
+          if (unigrams.has(k)) score += 2;
+          else {
+            // approximate/fuzzy match for short spelling differences
+            for (const t of unigrams) {
+              if (smallEditMatch(t, k)) {
+                score += 1;
+                break;
+              }
+            }
+          }
+        }
+      }
+      if (score > 0) scores[catName] = score;
     }
 
-    // Threshold: Must match at least 1 keyword to change it
-    if (maxHits > 0) {
+    // Pick best candidate if clear winner
+    const entries = Object.entries(scores).sort((a, b) => b[1] - a[1]);
+    if (entries.length === 0) return;
+
+    const [bestCat, bestScore] = entries[0];
+    const secondScore = entries[1] ? entries[1][1] : 0;
+
+    // Require minimum score and clear margin to avoid false positives
+    const MIN_SCORE = 3;
+    const MARGIN = 1.5; // best must be 1.5x second best
+    if (bestScore >= MIN_SCORE && bestScore >= secondScore * MARGIN) {
       const catInput = document.getElementById("category");
-
-      // Only update if the new category is different to avoid unnecessary flashing
-      if (catInput.value !== bestCategory) {
-        catInput.value = bestCategory;
-
-        // Visual feedback (Flash yellow)
+      if (catInput && catInput.value !== bestCat) {
+        catInput.value = bestCat;
         catInput.style.transition = "background 0.2s";
-        catInput.style.background = "#fff7d1"; // Light yellow
+        catInput.style.background = "#fff7d1";
         setTimeout(() => {
-          // Respect the lock visual state when removing the flash
           if (isCatLocked) catInput.style.background = "#f5f5f5";
           else catInput.style.background = "white";
         }, 500);
@@ -768,45 +955,130 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  // ...existing code...
   // 1. LISTEN FOR PASTE IN DESCRIPTION
   masterInput.addEventListener("paste", (e) => {
-    // We allow the paste to happen naturally so the description fills up.
-    // We just want to snoop on the data.
+    // Let the native paste occur; we only inspect clipboard and final content.
+    let pastedHTML = "";
+    let pastedText = "";
 
-    // Get HTML data if available (for links), fallback to text
-    const pastedHTML = e.clipboardData.getData("text/html");
-    const pastedText = e.clipboardData.getData("text/plain");
+    if (e.clipboardData) {
+      pastedHTML = e.clipboardData.getData("text/html");
+      pastedText = e.clipboardData.getData("text/plain");
+    } else if (window.clipboardData) {
+      pastedText = window.clipboardData.getData("Text");
+    }
 
-    // ⚡ TRIGGER AUTO-CATEGORIZATION
-    autoSuggestCategory(pastedText);
+    let analyzeText = (pastedText || "").trim();
+    let htmlAnchorText = "";
 
-    // Check if there is a Hyperlink
+    if (pastedHTML) {
+      try {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(pastedHTML, "text/html");
+        const anchor = doc.querySelector("a");
+        if (anchor)
+          htmlAnchorText = (
+            anchor.innerText ||
+            anchor.textContent ||
+            ""
+          ).trim();
+
+        if (!analyzeText)
+          analyzeText =
+            doc.body && doc.body.textContent ? doc.body.textContent.trim() : "";
+
+        if (htmlAnchorText) {
+          pendingAnchorText = htmlAnchorText;
+          analyzeText = analyzeText || htmlAnchorText;
+          pendingFullText = pastedText || analyzeText || "";
+        }
+      } catch (err) {
+        // ignore parse errors
+      }
+    }
+
+    // Immediate attempt using clipboard payload
+    if (analyzeText) {
+      autoSuggestCategory(analyzeText);
+    } else {
+      // Fallback: read the editor content after the native paste completes
+      setTimeout(() => {
+        const finalText = (
+          masterInput.innerText ||
+          masterInput.textContent ||
+          masterInput.value ||
+          ""
+        ).trim();
+        if (finalText) autoSuggestCategory(finalText);
+      }, 50);
+    }
+
+    // Preserve strategy modal behavior for anchors / semicolon hints
     if (pastedHTML && pastedHTML.includes("<a ")) {
-      // Parse the HTML to find the anchor text
       const parser = new DOMParser();
       const doc = parser.parseFromString(pastedHTML, "text/html");
       const anchor = doc.querySelector("a");
 
       if (anchor) {
-        pendingAnchorText = anchor.innerText || anchor.textContent;
-        pendingFullText = pastedText; // We use plain text for the semicolon check
-
-        // Show the Decision Modal
+        pendingFullText =
+          pastedText ||
+          pendingFullText ||
+          (doc.body && doc.body.textContent) ||
+          "";
         setTimeout(() => {
           strategyModal.style.display = "block";
-        }, 100); // Small delay to let the paste finish visually
+        }, 100);
       }
-    } else if (pastedText.includes(";")) {
-      // Even if no link, if there is a semicolon, maybe they want Classified mode?
-      // Let's trigger it if we see a semicolon structure just in case.
-      pendingAnchorText = ""; // No anchor
+    } else if ((pastedText || "").includes(";")) {
+      pendingAnchorText = pendingAnchorText || "";
       pendingFullText = pastedText;
       setTimeout(() => {
         strategyModal.style.display = "block";
       }, 100);
     }
-  });
 
+    // FINAL FALLBACK: if category still empty after autoSuggest runs, fill a safe default.
+    // Delay allows autoSuggestCategory (sync or async) to update the UI first.
+    setTimeout(() => {
+      try {
+        // Flexible selector to find the category field in the popup
+        const categoryInput = document.querySelector(
+          '#category, input[name="category"], input[id*="category"], input[placeholder*="Category"], textarea[name="category"], textarea[id*="category"]'
+        );
+
+        const getVal = (el) =>
+          el
+            ? (el.value !== undefined
+                ? el.value
+                : el.innerText || el.textContent || ""
+              )
+                .toString()
+                .trim()
+            : "";
+
+        if (!isCatLocked && categoryInput && getVal(categoryInput) === "") {
+          // Set fallback category
+          if (categoryInput.value !== undefined)
+            categoryInput.value = "Business/Other";
+          else categoryInput.innerText = "Business/Other";
+
+          // Trigger events so bound handlers react
+          categoryInput.dispatchEvent(new Event("input", { bubbles: true }));
+          categoryInput.dispatchEvent(new Event("change", { bubbles: true }));
+          // Optional visual hint (if toast exists in popup)
+          try {
+            if (typeof showStatus === "function")
+              showStatus("Category set: Business/Other");
+          } catch (e) {}
+        }
+      } catch (err) {
+        // swallow errors to avoid breaking paste flow
+        console.warn("Category fallback error:", err);
+      }
+    }, 300); // 300ms gives autoSuggestCategory time to act
+  });
+  // ...existing code...
   // 2. FORUM MODE: Keyword (Anchor) -> Title Case -> Title Input
   btnForumMode.addEventListener("click", () => {
     if (pendingAnchorText) {

@@ -1117,7 +1117,18 @@ document.addEventListener("mousedown", (e) => {
 });
 
 // 3. BUILDER: Generate the UI
+// ...existing code...
 function createSmartMenu(input, data) {
+  // Defensive cleanup of any previous menu
+  if (suggestionBox) {
+    try {
+      if (typeof suggestionBox._cleanup === "function")
+        suggestionBox._cleanup();
+      else suggestionBox.remove();
+    } catch (e) {}
+    suggestionBox = null;
+  }
+
   const detectedType = getFieldType(input);
 
   // Define Fields & Match Logic
@@ -1153,6 +1164,10 @@ function createSmartMenu(input, data) {
   // Create Container
   suggestionBox = document.createElement("div");
   suggestionBox.className = "llb-suggestion";
+  // Start hidden until positioned to avoid flicker
+  suggestionBox.style.position = "absolute";
+  suggestionBox.style.visibility = "hidden";
+  suggestionBox.style.transformOrigin = "top center";
 
   // Header
   const confidenceLabel =
@@ -1165,14 +1180,13 @@ function createSmartMenu(input, data) {
         <span id="llb-close-btn" style="cursor: pointer; font-size: 24px; line-height: 20px; opacity: 0.8;">&times;</span>
     </div>`;
 
-  // Close Button Logic
+  // Close Button Logic (use cleanup)
   suggestionBox
     .querySelector("#llb-close-btn")
     .addEventListener("click", (e) => {
       e.stopPropagation();
-      suggestionBox.remove();
-      suggestionBox = null;
-      activeMenuInput = null;
+      if (suggestionBox && typeof suggestionBox._cleanup === "function")
+        suggestionBox._cleanup();
     });
 
   // Render Data Items
@@ -1202,15 +1216,14 @@ function createSmartMenu(input, data) {
       item.innerHTML = `<strong>${f.label}</strong><small>${display}</small>`;
     }
 
-    // Click to Fill
+    // Click to Fill (use cleanup)
     item.onmousedown = (e) => {
       // Use mousedown to prevent focus loss issues
       e.preventDefault();
       e.stopPropagation();
       smartFill(input, data[f.key]);
-      suggestionBox.remove();
-      suggestionBox = null;
-      activeMenuInput = null;
+      if (suggestionBox && typeof suggestionBox._cleanup === "function")
+        suggestionBox._cleanup();
       toast(`${f.label} inserted`);
     };
     suggestionBox.appendChild(item);
@@ -1232,9 +1245,8 @@ function createSmartMenu(input, data) {
     const fake = generateFake(detectedType);
     const val = fake || "N/A";
     smartFill(input, val);
-    suggestionBox.remove();
-    suggestionBox = null;
-    activeMenuInput = null;
+    if (suggestionBox && typeof suggestionBox._cleanup === "function")
+      suggestionBox._cleanup();
     toast(`Generated: ${val}`);
   };
   suggestionBox.appendChild(fakeItem);
@@ -1242,26 +1254,91 @@ function createSmartMenu(input, data) {
   // Append to DOM
   document.body.appendChild(suggestionBox);
 
-  // Smart Positioning
-  const rect = input.getBoundingClientRect();
-  const topPos = window.scrollY + rect.bottom + 5;
+  // Positioning helpers: ALWAYS below the input
+  const margin = 8;
 
-  if (topPos + 350 > document.body.scrollHeight) {
-    // Flip Up if near bottom
-    suggestionBox.style.top = `${
-      window.scrollY + rect.top - suggestionBox.offsetHeight - 5
-    }px`;
-  } else {
-    suggestionBox.style.top = `${topPos}px`;
-  }
+  // ...existing code...
+  const applyPosition = () => {
+    if (!suggestionBox || !document.body.contains(suggestionBox)) return;
+    const rect = input.getBoundingClientRect();
+    const sx = window.scrollX || window.pageXOffset || 0;
+    const sy = window.scrollY || window.pageYOffset || 0;
 
-  // Keep within left bounds
-  let leftPos = window.scrollX + rect.left;
-  if (leftPos + 300 > window.innerWidth) {
-    leftPos = window.innerWidth - 310;
-  }
-  suggestionBox.style.left = `${leftPos}px`;
+    // Measure after append; getBoundingClientRect is reliable
+    const sbRect = suggestionBox.getBoundingClientRect();
+    const sbWidth = sbRect.width || 350;
+
+    // Ensure the menu fits the available space below the input and becomes scrollable
+    //  - availableBelow: pixels from input bottom to viewport bottom (minus margin)
+    //  - capHeight: also cap at 70% of viewport for consistency with CSS
+    const availableBelow = Math.max(
+      40,
+      window.innerHeight - rect.bottom - margin - 10
+    );
+    const capHeight = Math.round(window.innerHeight * 0.7);
+    const finalMax = Math.max(120, Math.min(availableBelow, capHeight));
+
+    suggestionBox.style.maxHeight = `${finalMax}px`;
+    suggestionBox.style.overflowY = "auto";
+    suggestionBox.style.boxSizing = "border-box";
+
+    // Compute left and clamp to viewport (account for scroll)
+    const leftRaw = Math.round(rect.left + sx);
+    const minLeft = sx + margin;
+    const maxLeft = sx + Math.max(margin, window.innerWidth - sbWidth - margin);
+    const left = Math.min(Math.max(leftRaw, minLeft), maxLeft);
+
+    const top = Math.round(rect.bottom + sy + 5); // ALWAYS below
+
+    suggestionBox.style.left = `${left}px`;
+    suggestionBox.style.top = `${top}px`;
+    suggestionBox.style.visibility = "visible";
+  };
+  // ...existing code...
+
+  // Reposition handler for scroll/resize
+  const reposition = () => {
+    if (!suggestionBox || !document.body.contains(suggestionBox)) {
+      window.removeEventListener("scroll", reposition, true);
+      window.removeEventListener("resize", reposition);
+      document.removeEventListener("mousedown", onDocMouseDown, true);
+      return;
+    }
+    applyPosition();
+  };
+
+  // Click outside handler
+  const onDocMouseDown = (ev) => {
+    if (!suggestionBox) return;
+    if (suggestionBox.contains(ev.target) || ev.target === input) return;
+    if (typeof suggestionBox._cleanup === "function") suggestionBox._cleanup();
+  };
+
+  // Cleanup to remove listeners and element
+  const cleanup = () => {
+    try {
+      window.removeEventListener("scroll", reposition, true);
+      window.removeEventListener("resize", reposition);
+      document.removeEventListener("mousedown", onDocMouseDown, true);
+    } catch (e) {}
+    try {
+      if (suggestionBox && suggestionBox.parentElement)
+        suggestionBox.parentElement.removeChild(suggestionBox);
+    } catch (e) {}
+    suggestionBox = null;
+    activeMenuInput = null;
+  };
+
+  // Attach cleanup method
+  suggestionBox._cleanup = cleanup;
+
+  // Initial position + listeners
+  applyPosition();
+  window.addEventListener("scroll", reposition, true);
+  window.addEventListener("resize", reposition);
+  document.addEventListener("mousedown", onDocMouseDown, true);
 }
+// ...existing code...
 // Helper to pause execution
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 

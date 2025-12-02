@@ -1,0 +1,3 @@
+- [ ] Add reset button to popup.html footer
+- [ ] Add reset event listener in popup.js to clear storage and reinitialize
+- [ ] Test reset functionality

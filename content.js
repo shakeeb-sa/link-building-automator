@@ -101,6 +101,65 @@ style.textContent = `
   backdrop-filter: blur(10px);
 }
 `;
+
+// ============================================================
+// 🎛️ GLOBAL TOGGLE: SUGGESTION MENU (Ctrl + X Long Press)
+// ============================================================
+let isSmartMenuEnabled = true; // Default ON
+
+// 1. Load Saved Preference on Startup
+chrome.storage.local.get(["smart_menu_active"], (res) => {
+  if (res.smart_menu_active !== undefined) {
+    isSmartMenuEnabled = res.smart_menu_active;
+  }
+});
+
+// 2. The Long Press Logic
+let menuToggleTimer = null;
+
+document.addEventListener("keydown", (e) => {
+  // Check for Ctrl + X (Case insensitive)
+  if (e.ctrlKey && e.key.toLowerCase() === "x") {
+    if (!menuToggleTimer) {
+      menuToggleTimer = setTimeout(() => {
+        toggleSmartMenuState();
+      }, 1000); // 1 Second Hold
+    }
+  }
+});
+
+document.addEventListener("keyup", (e) => {
+  // If user lets go of 'x' before 1 second, cancel the timer
+  if (e.key.toLowerCase() === "x") {
+    if (menuToggleTimer) {
+      clearTimeout(menuToggleTimer);
+      menuToggleTimer = null;
+    }
+  }
+});
+
+function toggleSmartMenuState() {
+  isSmartMenuEnabled = !isSmartMenuEnabled;
+
+  // Save to storage so it remembers across tabs/reloads
+  chrome.storage.local.set({ smart_menu_active: isSmartMenuEnabled });
+
+  // Visual Feedback
+  const msg = isSmartMenuEnabled
+    ? "✅ Suggestion Menu: ENABLED"
+    : "❌ Suggestion Menu: DISABLED";
+  toast(msg);
+
+  // If we just disabled it, remove any open menu immediately
+  if (!isSmartMenuEnabled && suggestionBox) {
+    if (typeof suggestionBox._cleanup === "function") suggestionBox._cleanup();
+    else suggestionBox.remove();
+    suggestionBox = null;
+  }
+
+  menuToggleTimer = null; // Reset
+}
+
 document.head.appendChild(style);
 
 function toast(msg) {
@@ -1092,6 +1151,9 @@ let activeMenuInput = null;
 
 // 1. TRIGGER: Open Menu on Focus
 document.addEventListener("focusin", async (e) => {
+  // 🛑 GATEKEEPER: If disabled via Ctrl+X, stop here.
+  if (!isSmartMenuEnabled) return;
+
   const input = e.target;
 
   // Filter unwanted elements

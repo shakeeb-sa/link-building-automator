@@ -166,7 +166,28 @@
   </head>
   <body>
     <div class="header">
-      <h3>⚡ Agency Hub</h3>
+      <div style="display: flex; align-items: center; gap: 10px">
+        <h3 style="margin: 0">⚡ Agency Hub</h3>
+        <button
+          id="guideBtn"
+          title="User Manual"
+          style="
+            background: none;
+            border: 1px solid #ccc;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            cursor: pointer;
+            font-size: 14px;
+            color: #555;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          "
+        >
+          ❓
+        </button>
+      </div>
       <div id="status"></div>
     </div>
 
@@ -494,6 +515,7 @@
       <div class="io-actions">
         <button id="exportBtn" class="io-btn">⬇️ Backup (JSON)</button>
         <button id="importBtn" class="io-btn">⬆️ Restore</button>
+        <button id="resetBtn" class="io-btn" style="color: #d63031;">🔄 Reset All</button>
         <input
           type="file"
           id="fileInput"
@@ -651,6 +673,150 @@
           id="closeStrategy"
         >
           Cancel (Keep Title)
+        </div>
+      </div>
+    </div>
+
+    <!-- 📘 USER GUIDE MODAL -->
+    <div
+      id="guideModal"
+      style="
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.8);
+        z-index: 3000;
+        backdrop-filter: blur(3px);
+      "
+    >
+      <div
+        style="
+          background: white;
+          width: 90%;
+          height: 90%;
+          margin: 5% auto;
+          border-radius: 12px;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+          box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+        "
+      >
+        <!-- Header -->
+        <div
+          style="
+            padding: 15px;
+            background: #f1f2f6;
+            border-bottom: 1px solid #ddd;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+          "
+        >
+          <h3 style="margin: 0; color: #2d3436">📘 Field Manual</h3>
+          <span
+            id="closeGuide"
+            style="
+              cursor: pointer;
+              font-size: 24px;
+              font-weight: bold;
+              color: #d63031;
+            "
+            >&times;</span
+          >
+        </div>
+
+        <!-- Scrollable Content -->
+        <div
+          style="
+            padding: 20px;
+            overflow-y: auto;
+            font-size: 13px;
+            line-height: 1.6;
+            color: #2d3436;
+          "
+        >
+          <div style="margin-bottom: 15px">
+            <strong style="color: #0984e3; font-size: 14px"
+              >🖱️ MOUSE GESTURES (The Core)</strong
+            >
+            <ul style="margin: 5px 0; padding-left: 20px; color: #555">
+              <li>
+                <b>4x Click (Any Input):</b> Smart Fill using active profile.
+              </li>
+              <li>
+                <b>Ctrl + 4x Click:</b> Smart Dropdown Matcher
+                (Country/State/City sequence).
+              </li>
+              <li>
+                <b>Shift + 4x Click:</b>
+                <span style="color: #d63031; font-weight: bold">Hard Fill</span>
+                (Forces fake data into empty fields).
+              </li>
+              <li><b>Ctrl + Alt + 4x Click:</b> Auto-Submit Form.</li>
+              <li>
+                <b>Long Left Click (2s):</b>
+                <span style="color: #00b894; font-weight: bold"
+                  >⚡ SHOCKWAVE</span
+                >
+                (Brute force checkboxes & radios).
+              </li>
+            </ul>
+          </div>
+
+          <div style="margin-bottom: 15px">
+            <strong style="color: #6c5ce7; font-size: 14px"
+              >⌨️ KEYBOARD COMMANDS</strong
+            >
+            <ul style="margin: 5px 0; padding-left: 20px; color: #555">
+              <li>
+                <b>Alt + G:</b> Open <u>Gateway Hunter</u> (Jump to
+                Login/Register/Admin).
+              </li>
+              <li><b>Ctrl + X (Hold 1s):</b> Toggle Suggestion Menu On/Off.</li>
+              <li><b>Alt + Dbl Click:</b> Open FakeMail (Auto-Refreshes).</li>
+              <li><b>Shift + Alt + Dbl Click:</b> Open Link Converter.</li>
+            </ul>
+          </div>
+
+          <div style="margin-bottom: 15px">
+            <strong style="color: #d63031; font-size: 14px"
+              >🛡️ WATCHTOWER & TOOLS</strong
+            >
+            <ul style="margin: 5px 0; padding-left: 20px; color: #555">
+              <li>
+                <b>Upload .xlsx:</b> Automatically blocks domains found in your
+                file.
+              </li>
+              <li><b>Red Banner:</b> Domain is blacklisted.</li>
+              <li><b>Green Signal:</b> Domain is safe to build.</li>
+              <li>
+                <b>Penny Pincher:</b> Auto-selects "Free" options & blocks
+                upsells.
+              </li>
+              <li>
+                <b>Email Hunter:</b> Detects OTPs & Verification links in
+                iframes.
+              </li>
+            </ul>
+          </div>
+
+          <div
+            style="
+              background: #fff7d1;
+              padding: 10px;
+              border-radius: 6px;
+              border: 1px solid #ffeaa7;
+              font-size: 12px;
+            "
+          >
+            <b>💡 Pro Tip:</b> Use the <b>Smart Paste</b> feature in the popup.
+            Paste a client brief (Name: John, Email: ...) into the description
+            box, and click "Import" to auto-parse it!
+          </div>
         </div>
       </div>
     </div>

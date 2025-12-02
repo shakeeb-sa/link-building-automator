@@ -7,6 +7,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const saveBtn = document.getElementById("saveButton");
   const exportBtn = document.getElementById("exportBtn");
   const importBtn = document.getElementById("importBtn");
+  const resetBtn = document.getElementById("resetBtn");
   const fileInput = document.getElementById("fileInput");
   const status = document.getElementById("status");
   const masterInput = document.getElementById("masterInput");
@@ -444,6 +445,22 @@ document.addEventListener("DOMContentLoaded", () => {
     downloadAnchorNode.remove();
   });
 
+  resetBtn.addEventListener("click", () => {
+    if (confirm("This will reset ALL extension data (profiles, watchtower databases, etc.) to default. Are you sure?")) {
+      chrome.storage.local.clear(() => {
+        // Reinitialize to default state
+        const newId = generateUUID();
+        store = {
+          activeId: newId,
+          profiles: { [newId]: { name: "Default Profile", data: {} } },
+        };
+        saveStore("Reset Complete!");
+        renderUI();
+        updateWatchtowerDisplay();
+      });
+    }
+  });
+
   importBtn.addEventListener("click", () => fileInput.click());
 
   fileInput.addEventListener("change", (e) => {
@@ -579,6 +596,30 @@ document.addEventListener("DOMContentLoaded", () => {
       );
     };
     reader.readAsArrayBuffer(file);
+  }
+
+  // ============================================================
+  // 📘 GUIDE MODAL LOGIC
+  // ============================================================
+  const guideBtn = document.getElementById("guideBtn");
+  const guideModal = document.getElementById("guideModal");
+  const closeGuide = document.getElementById("closeGuide");
+
+  if (guideBtn && guideModal) {
+    guideBtn.addEventListener("click", () => {
+      guideModal.style.display = "block";
+    });
+
+    closeGuide.addEventListener("click", () => {
+      guideModal.style.display = "none";
+    });
+
+    // Close if clicking outside the white box
+    guideModal.addEventListener("click", (e) => {
+      if (e.target === guideModal) {
+        guideModal.style.display = "none";
+      }
+    });
   }
 
   // Attach file upload listeners

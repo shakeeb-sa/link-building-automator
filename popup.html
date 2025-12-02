@@ -24,7 +24,6 @@
         font-size: 16px;
         color: #2d3436;
       }
-
       .control-panel {
         background: white;
         padding: 10px;
@@ -44,7 +43,6 @@
         border-radius: 4px;
         border: 1px solid #ccc;
       }
-
       .btn-group {
         display: flex;
         gap: 5px;
@@ -67,7 +65,6 @@
         color: white;
         border-color: #ff7675;
       }
-
       /* --- FORM STYLES --- */
       label {
         display: block;
@@ -92,13 +89,11 @@
         outline: 2px solid #74b9ff;
         border-color: transparent;
       }
-
       .grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 10px;
       }
-
       #masterInput {
         width: 100%;
         min-height: 80px;
@@ -111,7 +106,6 @@
         overflow-y: auto;
         font-family: monospace;
       }
-
       /* --- FOOTER ACTIONS --- */
       .footer {
         margin-top: 20px;
@@ -132,7 +126,6 @@
       .primary-btn:hover {
         background-color: #0066cc;
       }
-
       .io-actions {
         display: flex;
         justify-content: space-between;
@@ -146,7 +139,6 @@
         border: none;
         background: none;
       }
-
       #status {
         text-align: center;
         color: #00b894;
@@ -154,6 +146,21 @@
         font-size: 12px;
         height: 15px;
         margin-top: 5px;
+      }
+
+      #status {
+        text-align: center;
+        font-weight: bold;
+        font-size: 13px !important;
+        height: auto !important;
+        min-height: 20px;
+        padding: 6px 0;
+        opacity: 0.7;
+        transition: opacity 0.3s, color 0.3s;
+        margin-top: 8px;
+        pointer-events: none;
+        position: relative;
+        z-index: 100;
       }
     </style>
   </head>
@@ -168,6 +175,7 @@
       <div class="profile-row">
         <select id="profileSelect"></select>
         <button class="icon-btn" id="newBtn" title="New Profile">➕</button>
+
         <!-- ⚡ NEW IMPORT BUTTON -->
         <button
           class="icon-btn"
@@ -196,38 +204,111 @@
         <strong>🛡️ Watchtower</strong>
         <span id="dbStatus" style="font-size: 10px; color: #aaa">Inactive</span>
       </div>
-
       <div id="uploadView">
+        <div
+          style="
+            text-align: center;
+            margin-bottom: 10px;
+            font-weight: bold;
+            color: #2d3436;
+          "
+        >
+          Primary DB (Required)
+        </div>
         <label
           style="
             cursor: pointer;
-            margin-top: 8px;
             display: block;
             text-align: center;
-            border: 1px dashed #ccc;
-            padding: 8px;
-            border-radius: 4px;
-            font-size: 11px;
-            color: #555;
+            border: 2px dashed #74b9ff;
+            padding: 12px;
+            border-radius: 8px;
+            background: #f8fdff;
+            margin-bottom: 12px;
           "
         >
-          📂 Upload Master Excel (.xlsx)
+          Click to upload main list
           <input
             type="file"
-            id="xlsxInput"
-            accept=".xlsx, .xls"
+            id="xlsxInput1"
+            accept=".xlsx"
+            style="display: none"
+          />
+        </label>
+
+        <div
+          style="
+            text-align: center;
+            margin: 15px 0 8px;
+            font-weight: bold;
+            color: #00b894;
+          "
+        >
+          Secondary DB (Optional - overrides duplicates)
+        </div>
+        <label
+          style="
+            cursor: pointer;
+            display: block;
+            text-align: center;
+            border: 2px dashed #00b894;
+            padding: 12px;
+            border-radius: 8px;
+            background: #f8fff8;
+            opacity: 0.9;
+          "
+        >
+          Click to upload bonus/updated list
+          <input
+            type="file"
+            id="xlsxInput2"
+            accept=".xlsx"
             style="display: none"
           />
         </label>
       </div>
-
-      <div id="activeView" style="display: none; margin-top: 8px">
-        <div style="font-size: 11px; margin-bottom: 5px; color: #2d3436">
-          Monitoring <b id="domainCount">0</b> domains.
+      <div id="activeView" style="display: none; text-align: center">
+        <div style="margin-bottom: 12px">
+          <strong>Watchtower Active</strong><br />
+          Monitoring <span id="domainCount"></span> domains.<br />
+          <small id="dbStatus" style="color: #00b894"></small>
         </div>
-        <button id="clearDbBtn" class="icon-btn danger" style="width: 100%">
-          🗑️ Clear / Switch Project
-        </button>
+
+        <div
+          style="
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            flex-wrap: wrap;
+          "
+        >
+          <button
+            id="clearDbBtn"
+            class="icon-btn"
+            style="background: #ff7675; color: white"
+          >
+            Clear / Switch Project
+          </button>
+
+          <label
+            style="
+              cursor: pointer;
+              background: #00b894;
+              color: white;
+              padding: 8px 12px;
+              border-radius: 6px;
+              font-size: 12px;
+            "
+          >
+            Add Secondary DB
+            <input
+              type="file"
+              id="xlsxInput2_active"
+              accept=".xlsx"
+              style="display: none"
+            />
+          </label>
+        </div>
       </div>
     </div>
 
@@ -236,12 +317,10 @@
       <label>Username</label> <input type="text" id="username" />
       <label>Email</label> <input type="email" id="email" />
       <label>Password</label> <input type="password" id="password" />
-
       <div class="grid">
         <div><label>First Name</label><input type="text" id="firstName" /></div>
         <div><label>Last Name</label><input type="text" id="lastName" /></div>
       </div>
-
       <label>Company / Brand</label> <input type="text" id="company" />
       <label>Website URL</label> <input type="text" id="website" />
       <label>Title / Subject</label> <input type="text" id="title" />
@@ -262,21 +341,17 @@
           🔓
         </button>
       </div>
-
       <div class="grid">
         <div><label>Phone</label><input type="tel" id="phone" /></div>
         <div><label>Zip</label><input type="text" id="zip" /></div>
       </div>
-
       <label>Address</label> <input type="text" id="address" />
-
       <div class="grid">
         <div><label>City</label><input type="text" id="city" /></div>
         <div><label>State/Region</label><input type="text" id="region" /></div>
       </div>
       <label>Country</label>
       <input type="text" id="country" placeholder="United States" />
-
       <hr style="border: 0; border-top: 1px solid #eee; margin: 15px 0" />
 
       <!-- RICH TEXT EDITOR SUITE -->
@@ -313,6 +388,7 @@
           >
             🔗
           </button>
+
           <!-- The Source Switcher -->
           <button
             type="button"
@@ -325,7 +401,6 @@
           </button>
         </div>
       </label>
-
       <div style="position: relative">
         <!-- 1. Visual Editor -->
         <div
@@ -416,7 +491,6 @@
     <!-- FOOTER -->
     <div class="footer">
       <button id="saveButton" class="primary-btn">💾 Save Profile</button>
-
       <div class="io-actions">
         <button id="exportBtn" class="io-btn">⬇️ Backup (JSON)</button>
         <button id="importBtn" class="io-btn">⬆️ Restore</button>
@@ -526,7 +600,6 @@
         <p style="font-size: 12px; color: #636e72; margin-bottom: 20px">
           How should we format the <b>Title</b>?
         </p>
-
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px">
           <button
             id="btnForumMode"
@@ -547,7 +620,6 @@
               >(Use Anchor Text)</span
             >
           </button>
-
           <button
             id="btnClassifiedMode"
             style="
@@ -582,7 +654,6 @@
         </div>
       </div>
     </div>
-
     <script>
       // Hover effects for the new buttons (Inline for simplicity)
       document.getElementById("btnForumMode").onmouseenter = function () {
@@ -593,7 +664,6 @@
         this.style.background = "#fff";
         this.style.color = "#0984e3";
       };
-
       document.getElementById("btnClassifiedMode").onmouseenter = function () {
         this.style.background = "#00b894";
         this.style.color = "white";
@@ -603,7 +673,6 @@
         this.style.color = "#00b894";
       };
     </script>
-
     <script src="xlsx.mini.min.js"></script>
     <script src="popup.js"></script>
   </body>

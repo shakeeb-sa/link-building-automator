@@ -76,6 +76,30 @@ style.textContent = `
     0%,100% {opacity: 0; transform: translateX(-50%) translateY(-30px)}
     12%,88% {opacity: 1; transform: translateX(-50%) translateY(0)}
   }
+@keyframes llb-watchtower-fade {
+  0%, 100% { opacity: 0; transform: translateX(-50%) translateY(-30px); }
+  15%, 85% { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+.llb-watchtower-banner {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2147483647;
+  padding: 18px 40px;
+  border-radius: 50px;
+  font-family: -apple-system, system-ui, sans-serif;
+  font-weight: bold;
+  font-size: 18px;
+  color: white;
+  box-shadow: 0 15px 40px rgba(0,0,0,0.5);
+  animation: llb-watchtower-fade 4s forwards;
+  pointer-events: none;
+  min-width: 320px;
+  text-align: center;
+  backdrop-filter: blur(10px);
+}
 `;
 document.head.appendChild(style);
 
@@ -2307,45 +2331,88 @@ function createGatewayMenu() {
 // ============================================================
 // 🛡️ THE WATCHTOWER (Excel Collision Detector) - V2 (With Green Signal)
 // ============================================================
+// ============================================================
+// 🛡️ THE WATCHTOWER (Excel Collision Detector) - v3 (Source & Case Insensitive)
+// ============================================================
 (function initWatchtower() {
-  chrome.storage.local.get(["watchtower_domains"], (result) => {
-    const blacklist = result.watchtower_domains;
-    if (!blacklist || blacklist.length === 0) return; // Feature inactive if no file uploaded
+  chrome.storage.local.get(
+    ["watchtower_primary", "watchtower_secondary"],
+    (result) => {
+      const primary = result.watchtower_primary || [];
+      const secondary = result.watchtower_secondary || [];
 
-    const currentHost = window.location.hostname
-      .replace(/^www\./, "")
-      .toLowerCase();
+      // If both databases are empty, do nothing
+      if (primary.length === 0 && secondary.length === 0) return;
 
-    // Check Exact Match or Subdomain Match
-    const isRestricted = blacklist.some(
-      (domain) => currentHost === domain || currentHost.endsWith("." + domain)
-    );
+      // 1. NORMALIZE CURRENT HOST (Case-insensitive handling)
+      // window.location.hostname handles the removal of http:// automatically
+      // We just need to lowercase it and remove 'www.'
+      const currentHost = window.location.hostname
+        .replace(/^www\./i, "")
+        .toLowerCase();
 
-    if (isRestricted) {
-      createWarningBanner(currentHost);
-    } else {
-      createGreenSignal(currentHost);
+      // 2. MATCHING LOGIC
+      // Checks exact match (medium.com) OR subdomain match (.medium.com)
+      const checkMatch = (list) => {
+        return list.some((entry) => {
+          if (!entry) return false;
+          // Normalize the stored entry on the fly to be safe
+          const cleanEntry = entry
+            .toString()
+            .trim()
+            .replace(/^www\./i, "")
+            .toLowerCase();
+          return (
+            currentHost === cleanEntry || currentHost.endsWith("." + cleanEntry)
+          );
+        });
+      };
+
+      // 3. IDENTIFY SOURCE
+      const inPrimary = checkMatch(primary);
+      const inSecondary = checkMatch(secondary);
+
+      if (inPrimary || inSecondary) {
+        let sourceLabel = "Unknown List";
+        if (inPrimary && inSecondary) sourceLabel = "Primary & Secondary DB";
+        else if (inPrimary) sourceLabel = "Primary Master DB";
+        else if (inSecondary) sourceLabel = "Secondary DB";
+
+        createWarningBanner(currentHost, sourceLabel);
+      } else {
+        createGreenSignal(currentHost);
+      }
     }
-  });
+  );
 
   // 🛑 RED BANNER (BLOCKER)
-  function createWarningBanner(host) {
+  function createWarningBanner(host, source) {
+    if (document.getElementById("llb-warning-banner")) return;
+
     const div = document.createElement("div");
+    div.id = "llb-warning-banner";
     div.innerHTML = `
       <div style="
-        position: fixed; top: 0; left: 0; width: 100%; height: 50px;
+        position: fixed; top: 0; left: 0; width: 100%; height: 60px;
         background: #d63031; color: white; z-index: 2147483647;
-        display: flex; align-items: center; justify-content: center;
-        font-family: -apple-system, system-ui, sans-serif; font-weight: bold; 
-        font-size: 16px; box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        font-family: -apple-system, system-ui, sans-serif; 
+        box-shadow: 0 5px 15px rgba(0,0,0,0.3); line-height: 1.2;
       ">
-        🛑 STOP! Domain (${host}) is in Master File.
+        <div style="font-weight: bold; font-size: 16px;">
+          🛑 STOP! Domain (${host}) Exists!
+        </div>
+        <div style="font-size: 12px; opacity: 0.9; margin-top: 2px;">
+          Found in: <span style="background: rgba(0,0,0,0.2); padding: 2px 6px; border-radius: 4px; color: #fff;">${source}</span>
+        </div>
+        
         <button id="llb-dismiss-warning" style="
-          margin-left: 20px; background: white; color: #d63031; border: none;
-          padding: 5px 15px; border-radius: 4px; cursor: pointer; font-weight: bold;
+          position: absolute; right: 20px; top: 15px;
+          background: white; color: #d63031; border: none;
+          padding: 6px 15px; border-radius: 4px; cursor: pointer; font-weight: bold;
         ">Dismiss</button>
       </div>
-      <div style="height: 50px;"></div> <!-- Spacer to push content down -->
+      <div style="height: 60px;"></div> <!-- Spacer -->
     `;
     document.body.prepend(div);
 
@@ -2356,7 +2423,10 @@ function createGatewayMenu() {
 
   // ✅ GREEN SIGNAL (SAFE TO BUILD)
   function createGreenSignal(host) {
+    if (document.getElementById("llb-green-signal")) return;
+
     const div = document.createElement("div");
+    div.id = "llb-green-signal";
     div.innerHTML = `
       <div style="
         position: fixed; bottom: 20px; left: 20px; z-index: 2147483647;
@@ -2366,7 +2436,7 @@ function createGatewayMenu() {
         display: flex; align-items: center; gap: 8px; animation: slideInLeft 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
       ">
         <span>✅</span>
-        <span>Clean Domain: Ready to Build</span>
+        <span>Clean Domain: Safe to Post</span>
       </div>
       <style>
         @keyframes slideInLeft {
@@ -2377,7 +2447,6 @@ function createGatewayMenu() {
     `;
     document.body.appendChild(div);
 
-    // Auto-fade out after 4 seconds (so it doesn't annoy the user)
     setTimeout(() => {
       div.style.transition = "opacity 1s";
       div.style.opacity = "0";
@@ -2768,3 +2837,43 @@ async function triggerShockwave() {
 
   toast(`⚡ SHOCKWAVE: Forced ${count} Elements`);
 }
+
+// WATCHTOWER REAL-TIME BANNER — FINAL WORKING VERSION
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg.type !== "WATCHTOWER_STATUS") return;
+
+  const { domain, exists, inPrimary, inSecondary, total } = msg;
+
+  // Remove old banner
+  document
+    .querySelectorAll(".llb-watchtower-banner")
+    .forEach((el) => el.remove());
+
+  const banner = document.createElement("div");
+  banner.className = "llb-watchtower-banner";
+
+  if (exists) {
+    banner.textContent = `BLOCKED: ${domain.toUpperCase()} ALREADY IN WATCHTOWER`;
+    if (inPrimary && inSecondary)
+      banner.textContent += " (Primary + Secondary)";
+    else if (inPrimary) banner.textContent += " (Primary DB)";
+    else if (inSecondary) banner.textContent += " (Secondary DB)";
+    banner.style.background = "linear-gradient(135deg, #e74c3c, #c0392b)";
+  } else {
+    banner.textContent = `GOOD TO GO: ${domain.toUpperCase()} — Safe to Post (${total} monitored)`;
+    banner.style.background = "linear-gradient(135deg, #27ae60, #1abc9c)";
+  }
+
+  document.body.appendChild(banner);
+
+  setTimeout(() => banner.remove(), 3800);
+});
+
+// Also trigger on tab change / URL change
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg.type === "TAB_UPDATED" || msg.type === "WATCHTOWER_CHECK_NOW") {
+    setTimeout(() => {
+      chrome.runtime.sendMessage({ type: "REQUEST_WATCHTOWER_CHECK" });
+    }, 800);
+  }
+});

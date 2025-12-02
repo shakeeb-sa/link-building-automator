@@ -19,7 +19,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const bulkText = document.getElementById("bulkText");
 
   // Watchtower Elements
-  const xlsxInput = document.getElementById("xlsxInput");
+  const xlsxInput1 = document.getElementById("xlsxInput1");
+  const xlsxInput2 = document.getElementById("xlsxInput2");
   const uploadView = document.getElementById("uploadView");
   const activeView = document.getElementById("activeView");
   const dbStatus = document.getElementById("dbStatus");
@@ -64,14 +65,7 @@ document.addEventListener("DOMContentLoaded", () => {
     renderUI();
 
     // Initialize Watchtower UI
-    if (data.watchtower_domains && data.watchtower_domains.length > 0) {
-      showActiveState(
-        data.watchtower_domains.length,
-        data.watchtower_filename || "DB"
-      );
-    } else {
-      showUploadState();
-    }
+    updateWatchtowerDisplay(); // ← NEW LINE
   });
 
   // --- 2. CORE LOGIC ---
@@ -473,60 +467,174 @@ document.addEventListener("DOMContentLoaded", () => {
     reader.readAsText(file);
   });
 
-  // --- 6. WATCHTOWER LOGIC ---
-  if (xlsxInput) {
-    xlsxInput.addEventListener("change", (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
+  // ============================================================
+  // 🛡️ WATCHTOWER ENGINE v2 (The "Vacuum" Parser)
+  // ============================================================
+  function processWatchtowerFile(file, isSecondary = false) {
+    const reader = new FileReader();
 
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const data = new Uint8Array(e.target.result);
-        if (typeof XLSX === "undefined") {
-          alert("XLSX library not loaded. Check manifest/html.");
-          return;
+    status.textContent = "⏳ Scanning file...";
+    status.style.opacity = "1";
+
+    reader.onload = function (e) {
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, { type: "array" });
+
+      let extractedDomains = new Set(); // Use Set for instant de-duplication
+
+      // HELPER: robust domain extractor
+      const cleanDomain = (input) => {
+        if (!input) return null;
+        let s = String(input).toLowerCase().trim();
+
+        // 1. Regex to find a URL-like pattern inside the text
+        // Matches: example.com, https://example.com, www.example.com/page
+        const match = s.match(
+          /([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9][a-z0-9-]{0,61}[a-z0-9]/
+        );
+
+        if (!match) return null;
+
+        let domainCandidate = match[0];
+
+        try {
+          // Add protocol if missing so URL() object accepts it
+          if (!domainCandidate.startsWith("http")) {
+            domainCandidate = "http://" + domainCandidate;
+          }
+          const urlObj = new URL(domainCandidate);
+          // Return hostname without 'www.'
+          return urlObj.hostname.replace(/^www\./, "");
+        } catch (err) {
+          return null;
         }
-        const workbook = XLSX.read(data, { type: "array" });
+      };
 
-        let allDomains = new Set();
-        workbook.SheetNames.forEach((sheetName) => {
-          const worksheet = workbook.Sheets[sheetName];
-          const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-          json.forEach((row) => {
-            row.forEach((cell) => {
-              if (typeof cell === "string" && cell.includes(".")) {
-                const domain = extractDomain(cell);
-                if (domain) allDomains.add(domain);
-              }
-            });
-          });
+      // LOOP: Go through every Sheet, every Row, every Cell
+      workbook.SheetNames.forEach((sheetName) => {
+        const sheet = workbook.Sheets[sheetName];
+        // json_to_sheet gets us an array of objects
+        const rows = XLSX.utils.sheet_to_json(sheet, {
+          defval: "",
+          header: 1, // Treat as array of arrays (skips header logic issues)
+          blankrows: false,
         });
 
-        const domainArray = Array.from(allDomains);
-        chrome.storage.local.set(
-          {
-            watchtower_domains: domainArray,
-            watchtower_filename: file.name,
-          },
-          () => {
-            showActiveState(domainArray.length, file.name);
-            status.textContent = "Database Updated!";
-          }
-        );
-      };
-      reader.readAsArrayBuffer(file);
+        rows.forEach((row) => {
+          // Row is an array of cells [ColA, ColB, ColC...]
+          row.forEach((cellValue) => {
+            const domain = cleanDomain(cellValue);
+            if (domain) {
+              // Filter out common false positives (like "no.", "mr.", file extensions)
+              if (
+                domain.length > 3 &&
+                !domain.endsWith(".png") &&
+                !domain.endsWith(".jpg") &&
+                !domain.endsWith(".pdf")
+              ) {
+                extractedDomains.add(domain);
+              }
+            }
+          });
+        });
+      });
+
+      const finalDomainList = Array.from(extractedDomains);
+
+      if (finalDomainList.length === 0) {
+        status.textContent = "⚠️ No valid domains found in file.";
+        status.style.color = "#e17055";
+        return;
+      }
+
+      const key = isSecondary ? "watchtower_secondary" : "watchtower_primary";
+      const countKey = isSecondary ? "secondaryCount" : "primaryCount";
+
+      // Save to storage
+      chrome.storage.local.set(
+        {
+          [key]: finalDomainList,
+          [countKey]: finalDomainList.length,
+          watchtower_filename: file.name,
+        },
+        () => {
+          updateWatchtowerDisplay(); // Update UI
+          broadcastDomainStatus(); // Tell open tabs immediately
+
+          // Visual Success Feedback
+          const typeLabel = isSecondary ? "Secondary DB" : "Primary DB";
+          const color = isSecondary ? "#00b894" : "#d63031"; // Green or Red
+
+          status.textContent = `✅ Loaded ${typeLabel}: ${finalDomainList.length} domains`;
+          status.style.color = color;
+          status.style.fontWeight = "bold";
+
+          // Clear toast after 4s
+          clearTimeout(window.statusToastTimeout);
+          window.statusToastTimeout = setTimeout(() => {
+            status.textContent = "";
+            status.style.opacity = "0.7";
+          }, 4000);
+        }
+      );
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  // Attach file upload listeners
+  xlsxInput1.addEventListener("change", (e) => {
+    if (e.target.files[0]) processWatchtowerFile(e.target.files[0], false);
+  });
+  xlsxInput2.addEventListener("change", (e) => {
+    if (e.target.files[0]) processWatchtowerFile(e.target.files[0], true);
+  });
+  // Also listen to the "Add Secondary DB" button in active view
+  const xlsxInput2_active = document.getElementById("xlsxInput2_active");
+  if (xlsxInput2_active) {
+    xlsxInput2_active.addEventListener("change", (e) => {
+      if (e.target.files[0]) processWatchtowerFile(e.target.files[0], true);
     });
   }
 
   if (clearDbBtn) {
     clearDbBtn.addEventListener("click", () => {
-      chrome.storage.local.remove(
-        ["watchtower_domains", "watchtower_filename"],
-        () => {
-          showUploadState();
-          status.textContent = "Database Cleared";
+      chrome.storage.local.get(["primaryCount", "secondaryCount"], (data) => {
+        const p = data.primaryCount || 0;
+        const s = data.secondaryCount || 0;
+
+        if (p > 0 && s > 0) {
+          if (
+            confirm("Clear PRIMARY DB only? (Click Cancel to clear Secondary)")
+          ) {
+            chrome.storage.local.remove(
+              ["watchtower_primary", "primaryCount"],
+              updateWatchtowerDisplay
+            );
+          } else {
+            chrome.storage.local.remove(
+              ["watchtower_secondary", "secondaryCount"],
+              updateWatchtowerDisplay
+            );
+          }
+        } else if (p > 0) {
+          if (confirm("Clear Primary DB?")) {
+            chrome.storage.local.remove(
+              ["watchtower_primary", "primaryCount", "watchtower_filename"],
+              () => {
+                showUploadState();
+                if (xlsxInput1) xlsxInput1.value = "";
+              }
+            );
+          }
+        } else if (s > 0) {
+          if (confirm("Clear Secondary DB?")) {
+            chrome.storage.local.remove(
+              ["watchtower_secondary", "secondaryCount", "watchtower_filename"],
+              updateWatchtowerDisplay
+            );
+          }
         }
-      );
+      });
     });
   }
 
@@ -540,14 +648,83 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  function showActiveState(count, filename) {
-    uploadView.style.display = "none";
-    activeView.style.display = "block";
-    domainCount.textContent = count;
-    dbStatus.textContent =
-      "Active: " +
-      (filename.length > 15 ? filename.substring(0, 12) + "..." : filename);
-    dbStatus.style.color = "#00b894";
+  function showActiveState() {
+    updateWatchtowerDisplay();
+  }
+
+  function updateWatchtowerDisplay() {
+    chrome.storage.local.get(
+      [
+        "watchtower_primary",
+        "primaryCount",
+        "watchtower_secondary",
+        "secondaryCount",
+        "watchtower_filename",
+      ],
+      (data) => {
+        const p = data.primaryCount || 0;
+        const s = data.secondaryCount || 0;
+        const total = p + s;
+
+        if (total === 0) {
+          uploadView.style.display = "block";
+          activeView.style.display = "none";
+          return;
+        }
+
+        uploadView.style.display = "none";
+        activeView.style.display = "block";
+        domainCount.textContent = total;
+
+        let label = "";
+        if (p > 0 && s > 0) {
+          label = `Primary: ${p} | Secondary: ${s} (Dual Active)`;
+          dbStatus.style.color = "#00b894";
+        } else if (s > 0) {
+          label = `Secondary DB: ${s} domains`;
+          dbStatus.style.color = "#00b894";
+        } else {
+          label = `Primary DB: ${p} domains`;
+          dbStatus.style.color = "#0984e3";
+        }
+
+        dbStatus.textContent = label;
+      }
+    );
+  }
+
+  // Send current domain status to content script
+  function broadcastDomainStatus() {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (!tabs[0]?.url) return;
+
+      const url = tabs[0].url;
+      const domain = extractDomain(url);
+
+      if (!domain) return;
+
+      chrome.storage.local.get(
+        ["watchtower_primary", "watchtower_secondary"],
+        (data) => {
+          const primary = data.watchtower_primary || [];
+          const secondary = data.watchtower_secondary || [];
+          const all = [...primary, ...secondary];
+
+          const inPrimary = primary.includes(domain);
+          const inSecondary = secondary.includes(domain);
+          const exists = all.includes(domain);
+
+          chrome.tabs.sendMessage(tabs[0].id, {
+            type: "WATCHTOWER_STATUS",
+            domain,
+            exists,
+            inPrimary,
+            inSecondary,
+            total: all.length,
+          });
+        }
+      );
+    });
   }
 
   function showUploadState() {

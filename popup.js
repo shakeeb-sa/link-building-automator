@@ -22,6 +22,8 @@ document.addEventListener("DOMContentLoaded", () => {
   // Watchtower Elements
   const xlsxInput1 = document.getElementById("xlsxInput1");
   const xlsxInput2 = document.getElementById("xlsxInput2");
+  const pastedUrls = document.getElementById("pastedUrls");
+  const savePastedUrls = document.getElementById("savePastedUrls");
   const uploadView = document.getElementById("uploadView");
   const activeView = document.getElementById("activeView");
   const dbStatus = document.getElementById("dbStatus");
@@ -68,6 +70,58 @@ document.addEventListener("DOMContentLoaded", () => {
     // Initialize Watchtower UI
     updateWatchtowerDisplay(); // ← NEW LINE
   });
+
+  // ============================================================
+  // 🧼 SHARED DOMAIN NORMALIZER (for Excel + Pasted URLs)
+  // ============================================================
+  function cleanDomain(input) {
+    if (!input) return null;
+    let s = String(input).toLowerCase().trim();
+    // 1. Regex to find a URL-like pattern inside the text
+    const match = s.match(
+      /([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9][a-z0-9-]{0,61}[a-z0-9]/
+    );
+    if (!match) return null;
+    let domainCandidate = match[0];
+    try {
+      if (!domainCandidate.startsWith("http")) {
+        domainCandidate = "http://" + domainCandidate;
+      }
+      const urlObj = new URL(domainCandidate);
+      return urlObj.hostname.replace(/^www\./, "");
+    } catch (err) {
+      return null;
+    }
+  }
+
+  // ============================================================
+  // 💾 SAVE PASTED URL LIST (Standalone Watchtower Source)
+  // ============================================================
+  function savePastedList() {
+    const rawText = pastedUrls.value;
+    const lines = rawText
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+    const domains = new Set();
+    lines.forEach((line) => {
+      const domain = cleanDomain(line);
+      if (domain) domains.add(domain);
+    });
+    const domainList = Array.from(domains);
+    chrome.storage.local.set({ watchtower_pasted: domainList }, () => {
+      status.textContent = `✅ Pasted List: ${domainList.length} domains`;
+      status.style.color = "#6c5ce7";
+      setTimeout(() => {
+        status.textContent = "";
+        status.style.opacity = "0.7";
+      }, 3000);
+      updateWatchtowerDisplay(); // Refresh UI count
+      broadcastDomainStatus(); // Notify open tabs immediately
+    });
+  }
+
+  savePastedUrls.addEventListener("click", savePastedList);
 
   // --- 2. CORE LOGIC ---
   function renderUI() {
@@ -446,7 +500,11 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   resetBtn.addEventListener("click", () => {
-    if (confirm("This will reset ALL extension data (profiles, watchtower databases, etc.) to default. Are you sure?")) {
+    if (
+      confirm(
+        "This will reset ALL extension data (profiles, watchtower databases, etc.) to default. Are you sure?"
+      )
+    ) {
       chrome.storage.local.clear(() => {
         // Reinitialize to default state
         const newId = generateUUID();
@@ -639,43 +697,80 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if (clearDbBtn) {
     clearDbBtn.addEventListener("click", () => {
-      chrome.storage.local.get(["primaryCount", "secondaryCount"], (data) => {
-        const p = data.primaryCount || 0;
-        const s = data.secondaryCount || 0;
+      chrome.storage.local.get(
+        ["primaryCount", "secondaryCount", "watchtower_pasted"],
+        (data) => {
+          const p = data.primaryCount || 0;
+          const s = data.secondaryCount || 0;
+          const pasted = (data.watchtower_pasted || []).length;
 
-        if (p > 0 && s > 0) {
-          if (
-            confirm("Clear PRIMARY DB only? (Click Cancel to clear Secondary)")
-          ) {
-            chrome.storage.local.remove(
-              ["watchtower_primary", "primaryCount"],
-              updateWatchtowerDisplay
-            );
-          } else {
-            chrome.storage.local.remove(
-              ["watchtower_secondary", "secondaryCount"],
-              updateWatchtowerDisplay
-            );
+          // Case 1: Only Pasted List is active
+          if (p === 0 && s === 0 && pasted > 0) {
+            if (confirm("Clear Pasted URLs list?")) {
+              chrome.storage.local.remove(["watchtower_pasted"], () => {
+                updateWatchtowerDisplay();
+                broadcastDomainStatus();
+              });
+            }
+            return;
           }
-        } else if (p > 0) {
-          if (confirm("Clear Primary DB?")) {
-            chrome.storage.local.remove(
-              ["watchtower_primary", "primaryCount", "watchtower_filename"],
-              () => {
-                showUploadState();
-                if (xlsxInput1) xlsxInput1.value = "";
-              }
-            );
+
+          // Case 2: Excel lists are active (original logic)
+          if (p > 0 && s > 0) {
+            if (
+              confirm(
+                "Clear PRIMARY DB only? (Click Cancel to clear Secondary)"
+              )
+            ) {
+              chrome.storage.local.remove(
+                ["watchtower_primary", "primaryCount"],
+                updateWatchtowerDisplay
+              );
+            } else {
+              chrome.storage.local.remove(
+                ["watchtower_secondary", "secondaryCount"],
+                updateWatchtowerDisplay
+              );
+            }
+          } else if (p > 0) {
+            if (confirm("Clear Primary DB?")) {
+              chrome.storage.local.remove(
+                ["watchtower_primary", "primaryCount", "watchtower_filename"],
+                () => {
+                  showUploadState();
+                  if (xlsxInput1) xlsxInput1.value = "";
+                }
+              );
+            }
+          } else if (s > 0) {
+            if (confirm("Clear Secondary DB?")) {
+              chrome.storage.local.remove(
+                [
+                  "watchtower_secondary",
+                  "secondaryCount",
+                  "watchtower_filename",
+                ],
+                updateWatchtowerDisplay
+              );
+            }
           }
-        } else if (s > 0) {
-          if (confirm("Clear Secondary DB?")) {
-            chrome.storage.local.remove(
-              ["watchtower_secondary", "secondaryCount", "watchtower_filename"],
-              updateWatchtowerDisplay
-            );
+
+          // Case 3: Pasted list coexists with Excel → add a third option
+          if ((p > 0 || s > 0) && pasted > 0) {
+            if (
+              confirm(
+                "Also clear Pasted URLs list? (OK = Yes, Cancel = Keep it)"
+              )
+            ) {
+              chrome.storage.local.remove(["watchtower_pasted"], () => {
+                pastedUrls.value = ""; // 👈 Clear UI
+                updateWatchtowerDisplay();
+                broadcastDomainStatus();
+              });
+            }
           }
         }
-      });
+      );
     });
   }
 
@@ -700,36 +795,30 @@ document.addEventListener("DOMContentLoaded", () => {
         "primaryCount",
         "watchtower_secondary",
         "secondaryCount",
+        "watchtower_pasted", // ← NEW
         "watchtower_filename",
       ],
       (data) => {
         const p = data.primaryCount || 0;
         const s = data.secondaryCount || 0;
-        const total = p + s;
-
+        const pasted = (data.watchtower_pasted || []).length; // ← NEW
+        const total = p + s + pasted;
         if (total === 0) {
           uploadView.style.display = "block";
           activeView.style.display = "none";
           return;
         }
-
         uploadView.style.display = "none";
         activeView.style.display = "block";
         domainCount.textContent = total;
-
         let label = "";
-        if (p > 0 && s > 0) {
-          label = `Primary: ${p} | Secondary: ${s} (Dual Active)`;
-          dbStatus.style.color = "#00b894";
-        } else if (s > 0) {
-          label = `Secondary DB: ${s} domains`;
-          dbStatus.style.color = "#00b894";
-        } else {
-          label = `Primary DB: ${p} domains`;
-          dbStatus.style.color = "#0984e3";
-        }
-
+        const parts = [];
+        if (p > 0) parts.push(`Primary: ${p}`);
+        if (s > 0) parts.push(`Secondary: ${s}`);
+        if (pasted > 0) parts.push(`Pasted: ${pasted}`); // ← NEW
+        label = parts.join(" | ") + (parts.length > 1 ? " (All Active)" : "");
         dbStatus.textContent = label;
+        dbStatus.style.color = "#00b894";
       }
     );
   }
@@ -1507,5 +1596,12 @@ document.addEventListener("DOMContentLoaded", () => {
   urlInput.addEventListener("keydown", (e) => {
     if (e.key === "Enter") applyLinkBtn.click();
     if (e.key === "Escape") closeLinkUI();
+  });
+
+  // Load saved pasted list (if any)
+  chrome.storage.local.get(["watchtower_pasted"], (data) => {
+    if (data.watchtower_pasted) {
+      pastedUrls.value = data.watchtower_pasted.join("\n");
+    }
   });
 });

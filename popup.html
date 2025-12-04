@@ -287,6 +287,45 @@
             style="display: none"
           />
         </label>
+
+        <!-- ✅ PASTED URLS INPUT — NOW IN CORRECT PLACE -->
+        <div
+          style="
+            margin-top: 12px;
+            text-align: center;
+            font-weight: bold;
+            color: #6c5ce7;
+          "
+        >
+          Or paste URLs directly (one per line)
+        </div>
+        <textarea
+          id="pastedUrls"
+          placeholder="example.com&#10;https://www.site.net&#10;sub.domain.org/path"
+          style="
+            width: 100%;
+            height: 80px;
+            padding: 8px;
+            border: 1px solid #dfe6e9;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            box-sizing: border-box;
+            resize: vertical;
+          "
+        ></textarea>
+        <button
+          id="savePastedUrls"
+          class="icon-btn"
+          style="
+            margin-top: 6px;
+            background: #6c5ce7;
+            color: white;
+            width: 100%;
+          "
+        >
+          💾 Save Pasted URLs
+        </button>
       </div>
       <div id="activeView" style="display: none; text-align: center">
         <div style="margin-bottom: 12px">
@@ -515,7 +554,9 @@
       <div class="io-actions">
         <button id="exportBtn" class="io-btn">⬇️ Backup (JSON)</button>
         <button id="importBtn" class="io-btn">⬆️ Restore</button>
-        <button id="resetBtn" class="io-btn" style="color: #d63031;">🔄 Reset All</button>
+        <button id="resetBtn" class="io-btn" style="color: #d63031">
+          🔄 Reset All
+        </button>
         <input
           type="file"
           id="fileInput"

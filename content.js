@@ -2391,34 +2391,29 @@ function createGatewayMenu() {
 }
 
 // ============================================================
-// 🛡️ THE WATCHTOWER (Excel Collision Detector) - V2 (With Green Signal)
-// ============================================================
-// ============================================================
-// 🛡️ THE WATCHTOWER (Excel Collision Detector) - v3 (Source & Case Insensitive)
+// 🛡️ THE WATCHTOWER (Excel + Pasted URLs Collision Detector) - v4
 // ============================================================
 (function initWatchtower() {
   chrome.storage.local.get(
-    ["watchtower_primary", "watchtower_secondary"],
+    ["watchtower_primary", "watchtower_secondary", "watchtower_pasted"],
     (result) => {
       const primary = result.watchtower_primary || [];
       const secondary = result.watchtower_secondary || [];
+      const pasted = result.watchtower_pasted || [];
 
-      // If both databases are empty, do nothing
-      if (primary.length === 0 && secondary.length === 0) return;
+      // If all databases are empty, do nothing
+      if (primary.length === 0 && secondary.length === 0 && pasted.length === 0)
+        return;
 
       // 1. NORMALIZE CURRENT HOST (Case-insensitive handling)
-      // window.location.hostname handles the removal of http:// automatically
-      // We just need to lowercase it and remove 'www.'
       const currentHost = window.location.hostname
         .replace(/^www\./i, "")
         .toLowerCase();
 
       // 2. MATCHING LOGIC
-      // Checks exact match (medium.com) OR subdomain match (.medium.com)
       const checkMatch = (list) => {
         return list.some((entry) => {
           if (!entry) return false;
-          // Normalize the stored entry on the fly to be safe
           const cleanEntry = entry
             .toString()
             .trim()
@@ -2430,15 +2425,17 @@ function createGatewayMenu() {
         });
       };
 
-      // 3. IDENTIFY SOURCE
+      // 3. IDENTIFY SOURCES
       const inPrimary = checkMatch(primary);
       const inSecondary = checkMatch(secondary);
+      const inPasted = checkMatch(pasted);
 
-      if (inPrimary || inSecondary) {
-        let sourceLabel = "Unknown List";
-        if (inPrimary && inSecondary) sourceLabel = "Primary & Secondary DB";
-        else if (inPrimary) sourceLabel = "Primary Master DB";
-        else if (inSecondary) sourceLabel = "Secondary DB";
+      if (inPrimary || inSecondary || inPasted) {
+        const sources = [];
+        if (inPrimary) sources.push("Primary DB");
+        if (inSecondary) sources.push("Secondary DB");
+        if (inPasted) sources.push("Pasted List");
+        const sourceLabel = sources.join(" + ") || "Unknown List";
 
         createWarningBanner(currentHost, sourceLabel);
       } else {
@@ -2900,11 +2897,11 @@ async function triggerShockwave() {
   toast(`⚡ SHOCKWAVE: Forced ${count} Elements`);
 }
 
-// WATCHTOWER REAL-TIME BANNER — FINAL WORKING VERSION
+// WATCHTOWER REAL-TIME BANNER — FINAL WORKING VERSION (WITH PASTED LIST SUPPORT)
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type !== "WATCHTOWER_STATUS") return;
 
-  const { domain, exists, inPrimary, inSecondary, total } = msg;
+  const { domain, exists, inPrimary, inSecondary, inPasted, total } = msg;
 
   // Remove old banner
   document
@@ -2916,10 +2913,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   if (exists) {
     banner.textContent = `BLOCKED: ${domain.toUpperCase()} ALREADY IN WATCHTOWER`;
-    if (inPrimary && inSecondary)
-      banner.textContent += " (Primary + Secondary)";
-    else if (inPrimary) banner.textContent += " (Primary DB)";
-    else if (inSecondary) banner.textContent += " (Secondary DB)";
+    const sources = [];
+    if (inPrimary) sources.push("Primary DB");
+    if (inSecondary) sources.push("Secondary DB");
+    if (inPasted) sources.push("Pasted List");
+    if (sources.length > 0) {
+      banner.textContent += ` (${sources.join(" + ")})`;
+    }
     banner.style.background = "linear-gradient(135deg, #e74c3c, #c0392b)";
   } else {
     banner.textContent = `GOOD TO GO: ${domain.toUpperCase()} — Safe to Post (${total} monitored)`;

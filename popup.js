@@ -118,6 +118,8 @@ document.addEventListener("DOMContentLoaded", () => {
       }, 3000);
       updateWatchtowerDisplay(); // Refresh UI count
       broadcastDomainStatus(); // Notify open tabs immediately
+      // Clear stale acknowledgments
+      chrome.storage.local.remove("watchtower_acknowledged");
     });
   }
 
@@ -650,6 +652,9 @@ document.addEventListener("DOMContentLoaded", () => {
           updateWatchtowerDisplay(); // Update UI
           broadcastDomainStatus(); // Tell open tabs immediately
 
+          // Clear stale acknowledgments
+          chrome.storage.local.remove("watchtower_acknowledged");
+
           // Visual Success Feedback
           const typeLabel = isSecondary ? "Secondary DB" : "Primary DB";
           const color = isSecondary ? "#00b894" : "#d63031"; // Green or Red
@@ -724,6 +729,8 @@ document.addEventListener("DOMContentLoaded", () => {
               chrome.storage.local.remove(["watchtower_pasted"], () => {
                 updateWatchtowerDisplay();
                 broadcastDomainStatus();
+                // Clear stale acknowledgments
+                chrome.storage.local.remove("watchtower_acknowledged");
               });
             }
             return;

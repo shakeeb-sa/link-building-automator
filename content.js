@@ -2395,20 +2395,58 @@ function createGatewayMenu() {
 // ============================================================
 (function initWatchtower() {
   chrome.storage.local.get(
-    ["watchtower_primary", "watchtower_secondary", "watchtower_pasted"],
+    [
+      "watchtower_primary",
+      "watchtower_secondary",
+      "watchtower_pasted",
+      "watchtower_acknowledged",
+    ],
     (result) => {
       const primary = result.watchtower_primary || [];
       const secondary = result.watchtower_secondary || [];
       const pasted = result.watchtower_pasted || [];
+      const acknowledged = new Set(result.watchtower_acknowledged || []);
 
       // If all databases are empty, do nothing
       if (primary.length === 0 && secondary.length === 0 && pasted.length === 0)
         return;
 
-      // 1. NORMALIZE CURRENT HOST (Case-insensitive handling)
+      // 1. NORMALIZE CURRENT HOST
       const currentHost = window.location.hostname
         .replace(/^www\./i, "")
         .toLowerCase();
+
+      // 🧠 HANDLE ACKNOWLEDGED DOMAINS: SHOW STATUS BUTTON INSTEAD OF BANNER
+      if (acknowledged.has(currentHost)) {
+        // Re-run matching logic to get current status (in case Watchtower lists changed)
+        const checkMatch = (list) => {
+          return list.some((entry) => {
+            if (!entry) return false;
+            const cleanEntry = entry
+              .toString()
+              .trim()
+              .replace(/^www\./i, "")
+              .toLowerCase();
+            return (
+              currentHost === cleanEntry ||
+              currentHost.endsWith("." + cleanEntry)
+            );
+          });
+        };
+
+        const inPrimary = checkMatch(primary);
+        const inSecondary = checkMatch(secondary);
+        const inPasted = checkMatch(pasted);
+        const exists = inPrimary || inSecondary || inPasted;
+
+        createStatusButton(currentHost, {
+          inPrimary,
+          inSecondary,
+          inPasted,
+          exists,
+        });
+        return; // Skip banner, show button only
+      }
 
       // 2. MATCHING LOGIC
       const checkMatch = (list) => {
@@ -2444,44 +2482,63 @@ function createGatewayMenu() {
     }
   );
 
-  // 🛑 RED BANNER (BLOCKER)
+  // 🛑 RED BANNER (BLOCKER) — WITH ACKNOWLEDGMENT
   function createWarningBanner(host, source) {
     if (document.getElementById("llb-warning-banner")) return;
 
     const div = document.createElement("div");
     div.id = "llb-warning-banner";
     div.innerHTML = `
-      <div style="
-        position: fixed; top: 0; left: 0; width: 100%; height: 60px;
-        background: #d63031; color: white; z-index: 2147483647;
-        display: flex; flex-direction: column; align-items: center; justify-content: center;
-        font-family: -apple-system, system-ui, sans-serif; 
-        box-shadow: 0 5px 15px rgba(0,0,0,0.3); line-height: 1.2;
-      ">
-        <div style="font-weight: bold; font-size: 16px;">
-          🛑 STOP! Domain (${host}) Exists!
-        </div>
-        <div style="font-size: 12px; opacity: 0.9; margin-top: 2px;">
-          Found in: <span style="background: rgba(0,0,0,0.2); padding: 2px 6px; border-radius: 4px; color: #fff;">${source}</span>
-        </div>
-        
-        <button id="llb-dismiss-warning" style="
-          position: absolute; right: 20px; top: 15px;
-          background: white; color: #d63031; border: none;
-          padding: 6px 15px; border-radius: 4px; cursor: pointer; font-weight: bold;
-        ">Dismiss</button>
+    <div style="
+      position: fixed; top: 0; left: 0; width: 100%; height: 60px;
+      background: #d63031; color: white; z-index: 2147483647;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      font-family: -apple-system, system-ui, sans-serif; 
+      box-shadow: 0 5px 15px rgba(0,0,0,0.3); line-height: 1.2;
+    ">
+      <div style="font-weight: bold; font-size: 16px;">
+        🛑 STOP! Domain (${host}) Exists!
       </div>
-      <div style="height: 60px;"></div> <!-- Spacer -->
-    `;
+      <div style="font-size: 12px; opacity: 0.9; margin-top: 2px;">
+        Found in: <span style="background: rgba(0,0,0,0.2); padding: 2px 6px; border-radius: 4px; color: #fff;">${source}</span>
+      </div>
+      
+      <button id="llb-dismiss-warning" style="
+        position: absolute; right: 20px; top: 15px;
+        background: white; color: #d63031; border: none;
+        padding: 6px 15px; border-radius: 4px; cursor: pointer; font-weight: bold;
+      ">Dismiss</button>
+
+      <button id="llb-acknowledge-safe" style="
+        position: absolute; right: 20px; bottom: 15px;
+        background: #00b894; color: white; border: none;
+        padding: 6px 15px; border-radius: 4px; cursor: pointer; font-weight: bold;
+        font-size: 12px;
+      ">Okay, thank you</button>
+    </div>
+    <div style="height: 60px;"></div> <!-- Spacer -->
+  `;
     document.body.prepend(div);
 
+    // Standard dismiss
     document.getElementById("llb-dismiss-warning").onclick = () => {
       div.remove();
     };
+
+    // ✅ ACKNOWLEDGE: persist for this domain
+    document.getElementById("llb-acknowledge-safe").onclick = () => {
+      div.remove();
+      chrome.storage.local.get(["watchtower_acknowledged"], (data) => {
+        const acknowledged = new Set(data.watchtower_acknowledged || []);
+        acknowledged.add(host);
+        chrome.storage.local.set({
+          watchtower_acknowledged: Array.from(acknowledged),
+        });
+      });
+    };
   }
 
-  // ✅ GREEN SIGNAL (SAFE TO BUILD)
-  // ✅ GREEN SIGNAL (SAFE TO BUILD) — NOW PERSISTENT LIKE RED BANNER
+  // ✅ GREEN SIGNAL (SAFE TO BUILD) — NOW PERSISTENT + ACKNOWLEDGMENT
   function createGreenSignal(host) {
     if (document.getElementById("llb-green-signal")) return;
 
@@ -2507,16 +2564,108 @@ function createGatewayMenu() {
         background: white; color: #00b894; border: none;
         padding: 6px 15px; border-radius: 4px; cursor: pointer; font-weight: bold;
       ">Dismiss</button>
+
+      <button id="llb-acknowledge-safe" style="
+        position: absolute; right: 20px; bottom: 15px;
+        background: #d63031; color: white; border: none;
+        padding: 6px 15px; border-radius: 4px; cursor: pointer; font-weight: bold;
+        font-size: 12px;
+      ">Okay, thank you</button>
     </div>
     <div style="height: 60px;"></div> <!-- Spacer -->
   `;
     document.body.prepend(div);
 
+    // Standard dismiss
     document.getElementById("llb-dismiss-safe").onclick = () => {
       div.remove();
     };
+
+    // ✅ ACKNOWLEDGE: persist for this domain
+    document.getElementById("llb-acknowledge-safe").onclick = () => {
+      div.remove();
+      chrome.storage.local.get(["watchtower_acknowledged"], (data) => {
+        const acknowledged = new Set(data.watchtower_acknowledged || []);
+        acknowledged.add(host);
+        chrome.storage.local.set({
+          watchtower_acknowledged: Array.from(acknowledged),
+        });
+      });
+    };
   }
 })();
+
+// 👁️ PERSISTENT STATUS BUTTON (For Acknowledged Domains)
+function createStatusButton(host, status) {
+  // Prevent duplicate buttons
+  if (document.getElementById("llb-status-button")) return;
+
+  const btn = document.createElement("div");
+  btn.id = "llb-status-button";
+  btn.innerHTML = "🛡️";
+  Object.assign(btn.style, {
+    position: "fixed",
+    bottom: "20px",
+    right: "20px",
+    zIndex: "2147483647",
+    width: "36px",
+    height: "36px",
+    borderRadius: "50%",
+    background: "#2d3436",
+    color: "white",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+    fontSize: "16px",
+    fontWeight: "bold",
+    border: "2px solid #00b894",
+    transition: "transform 0.2s, background 0.2s",
+  });
+
+  btn.onmouseenter = () => (btn.style.transform = "scale(1.1)");
+  btn.onmouseleave = () => (btn.style.transform = "scale(1)");
+
+  btn.onclick = (e) => {
+    e.stopPropagation();
+
+    // Build status message
+    let msg = "";
+    if (status.exists) {
+      const sources = [];
+      if (status.inPrimary) sources.push("Primary DB");
+      if (status.inSecondary) sources.push("Secondary DB");
+      if (status.inPasted) sources.push("Pasted List");
+      msg = `⚠️ Blocked in: ${sources.join(" + ")}`;
+    } else {
+      msg = "✅ Clean — Safe to Post";
+    }
+
+    // Show floating toast
+    const toastEl = document.createElement("div");
+    toastEl.className = "llb-watchtower-banner";
+    toastEl.textContent = `Domain (${host}): ${msg}`;
+    toastEl.style.cssText = `
+      position: fixed;
+      bottom: 70px;
+      right: 20px;
+      background: ${status.exists ? "#d63031" : "#00b894"};
+      color: white;
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-family: -apple-system, system-ui, sans-serif;
+      font-weight: bold;
+      font-size: 13px;
+      z-index: 2147483647;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    `;
+    document.body.appendChild(toastEl);
+    setTimeout(() => toastEl.remove(), 4000);
+  };
+
+  document.body.appendChild(btn);
+}
 
 // ============================================================
 // 📨 THE EMAIL HUNTER v3 (Iframe & Plain Text Support)

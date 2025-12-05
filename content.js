@@ -2481,36 +2481,40 @@ function createGatewayMenu() {
   }
 
   // ✅ GREEN SIGNAL (SAFE TO BUILD)
+  // ✅ GREEN SIGNAL (SAFE TO BUILD) — NOW PERSISTENT LIKE RED BANNER
   function createGreenSignal(host) {
     if (document.getElementById("llb-green-signal")) return;
 
     const div = document.createElement("div");
     div.id = "llb-green-signal";
     div.innerHTML = `
-      <div style="
-        position: fixed; bottom: 20px; left: 20px; z-index: 2147483647;
-        background: #00b894; color: white; padding: 12px 20px;
-        border-radius: 50px; font-family: -apple-system, system-ui, sans-serif;
-        font-weight: bold; font-size: 14px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-        display: flex; align-items: center; gap: 8px; animation: slideInLeft 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-      ">
-        <span>✅</span>
-        <span>Clean Domain: Safe to Post</span>
+    <div style="
+      position: fixed; top: 0; left: 0; width: 100%; height: 60px;
+      background: #00b894; color: white; z-index: 2147483647;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      font-family: -apple-system, system-ui, sans-serif; 
+      box-shadow: 0 5px 15px rgba(0,0,0,0.3); line-height: 1.2;
+    ">
+      <div style="font-weight: bold; font-size: 16px;">
+        ✅ GOOD TO GO: Domain (${host}) is Clean!
       </div>
-      <style>
-        @keyframes slideInLeft {
-          from { transform: translateX(-100px); opacity: 0; }
-          to { transform: translateX(0); opacity: 1; }
-        }
-      </style>
-    `;
-    document.body.appendChild(div);
+      <div style="font-size: 12px; opacity: 0.9; margin-top: 2px;">
+        Safe to Post — No collisions detected.
+      </div>
+      
+      <button id="llb-dismiss-safe" style="
+        position: absolute; right: 20px; top: 15px;
+        background: white; color: #00b894; border: none;
+        padding: 6px 15px; border-radius: 4px; cursor: pointer; font-weight: bold;
+      ">Dismiss</button>
+    </div>
+    <div style="height: 60px;"></div> <!-- Spacer -->
+  `;
+    document.body.prepend(div);
 
-    setTimeout(() => {
-      div.style.transition = "opacity 1s";
-      div.style.opacity = "0";
-      setTimeout(() => div.remove(), 1000);
-    }, 4000);
+    document.getElementById("llb-dismiss-safe").onclick = () => {
+      div.remove();
+    };
   }
 })();
 

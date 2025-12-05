@@ -354,11 +354,25 @@ document.addEventListener("DOMContentLoaded", () => {
         return false;
       };
 
-      // Cleanup Country text
+      // === SMART COUNTRY CLEANUP ===
+      // Only remove lines that are *purely* country names.
+      // Keep lines that contain an address + country.
       for (let i = 0; i < lines.length; i++) {
-        if (/united states|usa|u\.s\.a/i.test(lines[i])) {
+        const line = lines[i].trim();
+        // If line is just "United States", "USA", etc. → remove it
+        if (/^(\s*(united states|usa|u\.s\.a)\s*)$/i.test(line)) {
           lines.splice(i, 1);
           i--;
+          continue;
+        }
+
+        // If line contains an address pattern AND ends with country → clean country suffix
+        const addressWithCountry = line.match(
+          /^(.+?),\s*(united states|usa|u\.s\.a)$/i
+        );
+        if (addressWithCountry) {
+          // Replace the line with just the address part (without ", United States")
+          lines[i] = addressWithCountry[1].trim();
         }
       }
 

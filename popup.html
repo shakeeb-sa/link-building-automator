@@ -546,6 +546,51 @@
           </div>
         </div>
       </div>
+
+      <!-- SAVED FORMATS MANAGER -->
+      <div
+        class="control-panel"
+        style="border-left: 4px solid #6c5ce7; margin-top: 15px"
+      >
+        <div
+          style="
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+          "
+        >
+          <strong>💾 Saved Formats</strong>
+          <span id="formatStats" style="font-size: 10px; color: #aaa"
+            >Loading...</span
+          >
+        </div>
+        <div
+          id="savedFormatsList"
+          style="
+            max-height: 120px;
+            overflow-y: auto;
+            font-size: 12px;
+            margin-bottom: 8px;
+          "
+        >
+          <div style="text-align: center; padding: 10px; color: #666">
+            No saved formats
+          </div>
+        </div>
+        <button
+          id="clearFormatsBtn"
+          class="icon-btn"
+          style="
+            background: #ff7675;
+            color: white;
+            width: 100%;
+            font-size: 11px;
+          "
+        >
+          🗑️ Clear All Saved Formats
+        </button>
+      </div>
     </div>
 
     <!-- FOOTER -->
@@ -554,12 +599,24 @@
       <div class="io-actions">
         <button id="exportBtn" class="io-btn">⬇️ Backup (JSON)</button>
         <button id="importBtn" class="io-btn">⬆️ Restore</button>
+        <button id="exportFormatsBtn" class="io-btn" style="color: #6c5ce7">
+          💾 Export Formats
+        </button>
+        <button id="importFormatsBtn" class="io-btn" style="color: #6c5ce7">
+          📥 Import Formats
+        </button>
         <button id="resetBtn" class="io-btn" style="color: #d63031">
           🔄 Reset All
         </button>
         <input
           type="file"
           id="fileInput"
+          style="display: none"
+          accept=".json"
+        />
+        <input
+          type="file"
+          id="formatsFileInput"
           style="display: none"
           accept=".json"
         />

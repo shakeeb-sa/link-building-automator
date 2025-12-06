@@ -559,6 +559,102 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // ============================================================
+  // 💾 EXPORT / IMPORT REMEMBERED FORMATS ONLY
+  // ============================================================
+  const exportFormatsBtn = document.getElementById("exportFormatsBtn");
+  const importFormatsBtn = document.getElementById("importFormatsBtn");
+  const formatsFileInput = document.getElementById("formatsFileInput");
+
+  // Export ONLY pref_* keys
+  exportFormatsBtn.addEventListener("click", () => {
+    chrome.storage.sync.get(null, (allSync) => {
+      if (chrome.runtime.lastError) {
+        // Fallback to local
+        chrome.storage.local.get(null, (allLocal) => {
+          const formatPrefs = {};
+          Object.keys(allLocal)
+            .filter((key) => key.startsWith("pref_"))
+            .forEach((key) => {
+              formatPrefs[key] = allLocal[key];
+            });
+          if (Object.keys(formatPrefs).length === 0) {
+            alert("No remembered formats to export.");
+            return;
+          }
+          downloadFormatsJson(formatPrefs);
+        });
+      } else {
+        const formatPrefs = {};
+        Object.keys(allSync)
+          .filter((key) => key.startsWith("pref_"))
+          .forEach((key) => {
+            formatPrefs[key] = allSync[key];
+          });
+        if (Object.keys(formatPrefs).length === 0) {
+          alert("No remembered formats to export.");
+          return;
+        }
+        downloadFormatsJson(formatPrefs);
+      }
+    });
+  });
+
+  function downloadFormatsJson(data) {
+    const dataStr =
+      "data:text/json;charset=utf-8," +
+      encodeURIComponent(JSON.stringify({ rememberedFormats: data }, null, 2));
+    const downloadAnchorNode = document.createElement("a");
+    downloadAnchorNode.setAttribute("href", dataStr);
+    downloadAnchorNode.setAttribute(
+      "download",
+      "linkbuilder_formats_" + new Date().toISOString().slice(0, 10) + ".json"
+    );
+    document.body.appendChild(downloadAnchorNode);
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
+  }
+
+  // Import ONLY into pref_* keys
+  importFormatsBtn.addEventListener("click", () => formatsFileInput.click());
+
+  formatsFileInput.addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const imported = JSON.parse(event.target.result);
+        if (
+          !imported.rememberedFormats ||
+          typeof imported.rememberedFormats !== "object"
+        ) {
+          alert("Invalid format backup file.");
+          return;
+        }
+        // Save to sync (with fallback to local)
+        chrome.storage.sync.set(imported.rememberedFormats, () => {
+          if (chrome.runtime.lastError) {
+            chrome.storage.local.set(imported.rememberedFormats, () => {
+              status.textContent = "✅ Formats imported (local)";
+              setTimeout(() => (status.textContent = ""), 3000);
+            });
+          } else {
+            status.textContent = "✅ Formats imported (sync)";
+            setTimeout(() => (status.textContent = ""), 3000);
+          }
+          // Refresh format list UI
+          if (typeof loadAndRenderFormats === "function") {
+            loadAndRenderFormats();
+          }
+        });
+      } catch (err) {
+        alert("Error parsing file.");
+      }
+    };
+    reader.readAsText(file);
+  });
+
+  // ============================================================
   // 🛡️ WATCHTOWER ENGINE v2 (The "Vacuum" Parser)
   // ============================================================
   function processWatchtowerFile(file, isSecondary = false) {
@@ -1625,4 +1721,112 @@ document.addEventListener("DOMContentLoaded", () => {
       pastedUrls.value = data.watchtower_pasted.join("\n");
     }
   });
+
+  // ============================================================
+  // 💾 SAVED FORMATS MANAGER
+  // ============================================================
+  function loadAndRenderFormats() {
+    const formatList = document.getElementById("savedFormatsList");
+    const formatStats = document.getElementById("formatStats");
+
+    if (!formatList || !formatStats) return; // Guard if HTML isn't loaded
+
+    // Check sync first, fallback to local
+    chrome.storage.sync.get(null, (syncData) => {
+      if (chrome.runtime.lastError || Object.keys(syncData).length === 0) {
+        // Fallback to local
+        chrome.storage.local.get(null, (localData) => {
+          renderFormatList(localData, formatList, formatStats);
+        });
+      } else {
+        renderFormatList(syncData, formatList, formatStats);
+      }
+    });
+  }
+
+  function renderFormatList(data, listEl, statsEl) {
+    const formatEntries = Object.entries(data)
+      .filter(([key]) => key.startsWith("pref_"))
+      .map(([key, value]) => ({
+        domain: key.replace("pref_", ""),
+        format: value,
+      }));
+
+    statsEl.textContent = `${formatEntries.length} saved`;
+
+    if (formatEntries.length === 0) {
+      listEl.innerHTML =
+        '<div style="text-align: center; padding: 10px; color: #666">No saved formats</div>';
+      return;
+    }
+
+    listEl.innerHTML = "";
+    formatEntries.forEach(({ domain, format }) => {
+      const item = document.createElement("div");
+      item.style.display = "flex";
+      item.style.justifyContent = "space-between";
+      item.style.alignItems = "center";
+      item.style.padding = "6px 0";
+      item.style.borderBottom = "1px solid #eee";
+      item.innerHTML = `
+      <div>
+        <div style="font-weight: bold; font-size: 12px">${domain}</div>
+        <div style="font-size: 11px; color: #6c5ce7">${format}</div>
+      </div>
+      <button class="delete-format" data-domain="${domain}" style="
+        background: #ff7675; color: white; border: none; border-radius: 4px;
+        padding: 2px 8px; font-size: 10px; cursor: pointer;
+      ">🗑️</button>
+    `;
+      listEl.appendChild(item);
+    });
+
+    // Add delete listeners
+    listEl.querySelectorAll(".delete-format").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        const domain = e.target.dataset.domain;
+        if (confirm(`Remove saved format for ${domain}?`)) {
+          chrome.storage.sync.remove(`pref_${domain}`, () => {
+            if (chrome.runtime.lastError) {
+              chrome.storage.local.remove(`pref_${domain}`);
+            }
+            loadAndRenderFormats(); // Refresh
+          });
+        }
+      });
+    });
+  }
+
+  // Load on init
+  loadAndRenderFormats();
+  // Refresh list when preference is saved/removed from content script
+  chrome.runtime.onMessage.addListener((msg) => {
+    if (msg.type === "REFRESH_SAVED_FORMATS") {
+      loadAndRenderFormats();
+    }
+  });
+
+  // Clear All button
+  const clearFormatsBtn = document.getElementById("clearFormatsBtn");
+  if (clearFormatsBtn) {
+    clearFormatsBtn.addEventListener("click", () => {
+      if (
+        confirm("Clear ALL saved format preferences? This cannot be undone.")
+      ) {
+        chrome.storage.sync.clear(() => {
+          if (chrome.runtime.lastError) {
+            chrome.storage.local.clear(() => {
+              loadAndRenderFormats();
+              status.textContent = "✅ All formats cleared (local)";
+              setTimeout(() => (status.textContent = ""), 3000);
+            });
+          } else {
+            loadAndRenderFormats();
+            status.textContent = "✅ All formats cleared (sync)";
+            setTimeout(() => (status.textContent = ""), 3000);
+          }
+        });
+      }
+    });
+  }
 });

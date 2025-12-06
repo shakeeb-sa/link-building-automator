@@ -1499,41 +1499,49 @@ document.addEventListener("dblclick", (e) => {
   // --- MEMORY LOGIC ---
   function checkMemoryAndExecute(x, y) {
     const domain = window.location.hostname;
-
-    // UPDATED: Read from LOCAL storage and look for 'current_flat_data'
-    chrome.storage.local.get(
-      ["current_flat_data", `pref_${domain}`],
-      (data) => {
-        const savedType = data[`pref_${domain}`];
-        // EXTRACT MASTER HTML FROM NEW STRUCTURE
-        const master = data.current_flat_data?.masterHTML || "";
-
-        if (savedType && master) {
-          toast(`⚡ Auto-Pasting (${savedType})...`);
-
-          let content = "";
-          let isRich = false;
-
-          if (savedType === "HTML Code (Clean)") content = cleanHtml(master);
-          else if (savedType === "Markdown (Inline)")
-            content = toMarkdown(master);
-          else if (savedType === "BBCode") content = toBBCode(master);
-          else if (savedType === "Markdown (Reference)")
-            content = toReferenceMarkdown(master);
-          else if (savedType === "Rich Text") {
-            content = master;
-            isRich = true;
-          } else {
-            createOverlayMenu(x, y, false);
-            return;
-          }
-          handleSnippetSelection(content, isRich, false);
-        } else {
-          toast("⚡ Opening Text Menu...");
-          createOverlayMenu(x, y, false);
-        }
+    // ✅ LOAD FROM SYNC FIRST, FALL BACK TO LOCAL
+    chrome.storage.sync.get([`pref_${domain}`], (syncData) => {
+      let savedType = syncData[`pref_${domain}`];
+      if (chrome.runtime.lastError || savedType === undefined) {
+        // Fallback to local (for legacy or quota-exceeded cases)
+        chrome.storage.local.get([`pref_${domain}`], (localData) => {
+          savedType = localData[`pref_${domain}`];
+          processWithSavedType(savedType, x, y);
+        });
+      } else {
+        processWithSavedType(savedType, x, y);
       }
-    );
+    });
+  }
+
+  function processWithSavedType(savedType, x, y) {
+    // EXTRACT MASTER HTML
+    chrome.storage.local.get(["current_flat_data"], (data) => {
+      const master = data.current_flat_data?.masterHTML || "";
+      if (savedType && master) {
+        // ✅ AUTO-PASTE + TOAST (NO MENU)
+        toast(`⚡ Auto-pasted (${savedType})`);
+        let content = "";
+        let isRich = false;
+        if (savedType === "HTML Code (Clean)") content = cleanHtml(master);
+        else if (savedType === "Markdown (Inline)")
+          content = toMarkdown(master);
+        else if (savedType === "BBCode") content = toBBCode(master);
+        else if (savedType === "Markdown (Reference)")
+          content = toReferenceMarkdown(master);
+        else if (savedType === "Rich Text") {
+          content = master;
+          isRich = true;
+        } else {
+          content = master;
+        }
+        handleSnippetSelection(content, isRich, false);
+      } else {
+        // ❌ NO SAVED PREFERENCE → SHOW MENU
+        toast("⚡ Opening Text Menu...");
+        createOverlayMenu(x, y, false);
+      }
+    });
   }
 
   // --- CONVERSION ENGINES (Sanitized) ---
@@ -1794,13 +1802,22 @@ document.addEventListener("dblclick", (e) => {
 
     if (shouldRemember && typeLabel) {
       const domain = window.location.hostname;
-      // UPDATED: Save to LOCAL storage
-      chrome.storage.local.set({ [`pref_${domain}`]: typeLabel }, () => {
+      chrome.storage.sync.set({ [`pref_${domain}`]: typeLabel }, () => {
+        if (chrome.runtime.lastError) {
+          // Fallback to local if sync quota exceeded
+          chrome.storage.local.set({ [`pref_${domain}`]: typeLabel });
+        }
         toast(`💾 Saved preference: ${typeLabel}`);
+        // Notify popup to refresh
+        chrome.runtime.sendMessage({ type: "REFRESH_SAVED_FORMATS" });
       });
     } else if (!shouldRemember && typeLabel) {
       const domain = window.location.hostname;
-      chrome.storage.local.remove(`pref_${domain}`);
+      chrome.storage.sync.remove(`pref_${domain}`, () => {
+        if (chrome.runtime.lastError) {
+          chrome.storage.local.remove(`pref_${domain}`);
+        }
+      });
     }
 
     if (isRich) {

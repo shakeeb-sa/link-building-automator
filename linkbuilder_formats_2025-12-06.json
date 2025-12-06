@@ -1,16 +1,28 @@
 {
   "rememberedFormats": {
+    "pref_app.jenni.ai": "Rich Text",
+    "pref_app.sirvo.com": "Rich Text",
+    "pref_docs.datananas.com": "Markdown (Inline)",
     "pref_files.fm": "Rich Text",
     "pref_forum.reallusion.com": "Rich Text",
+    "pref_it-rating.com": "Rich Text",
+    "pref_jobs.dfw501c.com": "Rich Text",
     "pref_makeprojects.com": "Rich Text",
+    "pref_missfrugalmommy.com": "HTML Code (Clean)",
     "pref_nootropicdesign.com": "HTML Code (Clean)",
     "pref_outdoor.visittrentino.info": "HTML Code (Clean)",
+    "pref_postherefree.com": "Markdown (Reference)",
     "pref_projectnoah.org": "Rich Text",
     "pref_shakeeb-sa.github.io": "Rich Text",
+    "pref_test.elit.edu.my": "HTML Code (Clean)",
+    "pref_usvs.ms": "Rich Text",
     "pref_wandb.ai": "Rich Text",
+    "pref_www.askmeclassifieds.com": "Rich Text",
     "pref_www.escapemotions.com": "HTML Code (Clean)",
     "pref_www.facer.io": "HTML Code (Clean)",
     "pref_www.goconqr.com": "Rich Text",
+    "pref_www.mateball.com": "Rich Text",
+    "pref_www.meetyourmarkets.com": "Rich Text",
     "pref_www.nepris.com": "Rich Text",
     "pref_www.thetechedvocate.org": "HTML Code (Clean)"
   }

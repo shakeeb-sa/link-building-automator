@@ -3109,3 +3109,341 @@ chrome.runtime.onMessage.addListener((msg) => {
     }, 800);
   }
 });
+
+// ============================================================
+// 🔗 UNUSED BACKLINKS FLOATING BUTTON & POPUP
+// (Now runs immediately on page load)
+// ============================================================
+(function initUnusedBacklinks() {
+  // Skip iframes or background pages
+  if (window !== window.top) return;
+
+  // Create floating button
+  const btn = document.createElement("div");
+  btn.id = "unused-backlinks-btn";
+  btn.innerHTML = "🔗";
+  btn.style.cssText = `
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    z-index: 2147483647;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: #6c5ce7;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    font-weight: bold;
+    font-size: 16px;
+    border: 2px solid #554aa0;
+    transition: transform 0.2s;
+  `;
+  btn.onmouseenter = () => (btn.style.transform = "scale(1.1)");
+  btn.onmouseleave = () => (btn.style.transform = "scale(1)");
+  btn.onclick = () => showUnusedBacklinksModal();
+  document.body.appendChild(btn);
+})();
+
+function showUnusedBacklinksModal() {
+  const existing = document.getElementById("unusedBacklinksModal");
+  if (existing) existing.remove();
+
+  chrome.storage.local.get(
+    [
+      "unused_backlinks_categorized",
+      "stock_backlinks_history",
+      "stock_backlinks_active_filter",
+    ],
+    (data) => {
+      const categories = data.unused_backlinks_categorized || {};
+      const sheetNames = Object.keys(categories);
+
+      let historySet = new Set(data.stock_backlinks_history || []);
+
+      if (sheetNames.length === 0) {
+        alert(
+          "No categorized backlinks found. Please re-upload your list in the popup."
+        );
+        return;
+      }
+
+      // --- STATE INITIALIZATION ---
+      let activeSheets;
+      const savedFilters = data.stock_backlinks_active_filter;
+
+      if (
+        savedFilters &&
+        Array.isArray(savedFilters) &&
+        savedFilters.length > 0
+      ) {
+        const validFilters = savedFilters.filter((name) =>
+          sheetNames.includes(name)
+        );
+        activeSheets = new Set(
+          validFilters.length > 0 ? validFilters : sheetNames
+        );
+      } else {
+        activeSheets = new Set(sheetNames);
+      }
+
+      let currentBatch = [];
+
+      // --- HELPERS ---
+      const saveActiveState = () => {
+        chrome.storage.local.set({
+          stock_backlinks_active_filter: Array.from(activeSheets),
+        });
+      };
+
+      const saveHistory = () => {
+        chrome.storage.local.set({
+          stock_backlinks_history: Array.from(historySet),
+        });
+      };
+
+      const getRemainingCount = (sheetName) => {
+        const totalUrls = categories[sheetName] || [];
+        return totalUrls.filter((url) => !historySet.has(url)).length;
+      };
+
+      const getSample = () => {
+        let pool = [];
+        activeSheets.forEach((sheet) => {
+          if (categories[sheet]) {
+            const available = categories[sheet].filter(
+              (url) => !historySet.has(url)
+            );
+            pool = pool.concat(available);
+          }
+        });
+
+        if (pool.length === 0) return [];
+
+        const shuffled = [...pool].sort(() => 0.5 - Math.random());
+        const draw = shuffled.slice(0, 5);
+        draw.forEach((url) => historySet.add(url));
+        saveHistory();
+
+        return draw;
+      };
+
+      const renderList = (items) => {
+        currentBatch = items;
+        const listContainer = document.getElementById("unusedBacklinksList");
+        if (!listContainer) return;
+
+        listContainer.innerHTML = "";
+
+        if (items.length === 0) {
+          let totalRemainingInActive = 0;
+          activeSheets.forEach(
+            (s) => (totalRemainingInActive += getRemainingCount(s))
+          );
+
+          if (activeSheets.size === 0) {
+            listContainer.innerHTML = `<div style="text-align:center; color:#999; padding:20px;">No sheets selected.<br>Turn on a filter above.</div>`;
+          } else if (totalRemainingInActive === 0) {
+            listContainer.innerHTML = `
+               <div style="text-align:center; color:#2d3436; padding:20px;">
+                 <strong>🎉 Category Completed!</strong><br>
+                 <span style="font-size:12px; color:#666">Click "Reset Active" to restart this category.</span>
+               </div>`;
+          }
+          return;
+        }
+
+        items.forEach((url, i) => {
+          const item = document.createElement("div");
+          item.style.cssText =
+            "padding: 8px 0; border-bottom: 1px solid #eee; font-size: 13px; word-break: break-all;";
+          item.innerHTML = `<strong>${
+            i + 1
+          }.</strong> <a href="${url}" target="_blank" style="color: #0984e3; text-decoration: none;">${url}</a>`;
+          listContainer.appendChild(item);
+        });
+      };
+
+      // --- BUILD MODAL HTML ---
+      const modal = document.createElement("div");
+      modal.id = "unusedBacklinksModal";
+      modal.style.cssText = `
+        position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+        background: white; width: 450px; max-height: 85vh; border-radius: 12px;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.5); z-index: 2147483647;
+        padding: 20px; font-family: -apple-system, sans-serif; color: #333; display: flex; flex-direction: column;
+      `;
+
+      modal.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+          <strong style="font-size: 16px; color: #6c5ce7">🔗 Stock Backlinks</strong>
+          <div style="display:flex; gap:10px;">
+            <button id="resetAllGlobalBtn" style="
+                background: #ff7675; color: white; border: none; padding: 4px 8px;
+                border-radius: 4px; cursor: pointer; font-size: 10px; font-weight: bold;
+            " title="Danger: Resets EVERYTHING">⚠️ RESET ALL</button>
+            <span id="closeUnusedBacklinks" style="cursor: pointer; font-size: 20px">&times;</span>
+          </div>
+        </div>
+
+        <div id="sheetFilterContainer" style="
+          display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 15px; 
+          padding-bottom: 10px; border-bottom: 1px solid #eee;
+        "></div>
+
+        <div id="unusedBacklinksList" style="flex-grow: 1; overflow-y: auto; margin-bottom: 15px; min-height: 150px;"></div>
+        
+        <div style="display: flex; gap: 8px;">
+           <button id="resetActiveBtn" style="
+            flex: 0 0 auto; background: #dfe6e9; color: #636e72; border: none; padding: 10px;
+            border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 14px;
+          " title="Resets history ONLY for selected green buttons">↺ Active</button>
+          
+          <button id="shuffleBacklinksBtn" style="
+            flex: 1; background: #6c5ce7; color: white; border: none; padding: 10px;
+            border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 14px;
+          ">🔄 Shuffle New</button>
+          
+          <button id="openAllBacklinksBtn" style="
+            flex: 1; background: #00b894; color: white; border: none; padding: 10px;
+            border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 14px;
+          ">🚀 Open All</button>
+        </div>
+      `;
+
+      const filterContainer = modal.querySelector("#sheetFilterContainer");
+
+      const renderButtons = () => {
+        filterContainer.innerHTML = "";
+
+        // 1. ALL Button
+        const allBtn = document.createElement("button");
+        allBtn.textContent = "ALL";
+        const isAllSelected = activeSheets.size === sheetNames.length;
+        allBtn.style.cssText = `
+            border: 1px solid #6c5ce7; 
+            background: ${isAllSelected ? "#6c5ce7" : "#f1f2f6"}; 
+            color: ${isAllSelected ? "white" : "#636e72"}; 
+            border-radius: 15px; padding: 4px 12px; font-size: 11px; cursor: pointer; font-weight: bold;
+          `;
+        allBtn.onclick = () => {
+          if (activeSheets.size === sheetNames.length) activeSheets.clear();
+          else activeSheets = new Set(sheetNames);
+          saveActiveState();
+          updateUI(true);
+        };
+        filterContainer.appendChild(allBtn);
+
+        // 2. Category Buttons
+        sheetNames.forEach((name) => {
+          const count = getRemainingCount(name);
+
+          const btn = document.createElement("button");
+          const isActive = activeSheets.has(name);
+
+          btn.textContent = `${name} (${count})`;
+
+          btn.style.cssText = `
+                border: 1px solid #ccc; 
+                background: ${isActive ? "#00b894" : "#f1f2f6"}; 
+                color: ${isActive ? "white" : "#636e72"}; 
+                border-color: ${isActive ? "#00b894" : "#ccc"};
+                border-radius: 15px; padding: 4px 10px; font-size: 11px; cursor: pointer; transition: all 0.2s;
+              `;
+
+          if (count === 0 && !isActive) btn.style.opacity = "0.5";
+
+          btn.onclick = () => {
+            if (activeSheets.has(name)) activeSheets.delete(name);
+            else activeSheets.add(name);
+            saveActiveState();
+            updateUI();
+          };
+          filterContainer.appendChild(btn);
+        });
+      };
+
+      const updateUI = (drawNew = true) => {
+        renderButtons();
+        if (drawNew) renderList(getSample());
+      };
+
+      // Initial Load
+      updateUI();
+
+      // --- LISTENERS ---
+      modal.querySelector("#shuffleBacklinksBtn").onclick = () =>
+        updateUI(true);
+
+      modal.querySelector("#openAllBacklinksBtn").onclick = () => {
+        if (
+          currentBatch.length > 0 &&
+          confirm(`Open these ${currentBatch.length} links?`)
+        ) {
+          currentBatch.forEach((url) => window.open(url, "_blank"));
+        }
+      };
+
+      modal.querySelector("#resetAllGlobalBtn").onclick = () => {
+        if (
+          confirm(
+            "⚠️ RESET EVERYTHING?\nThis will clear history for ALL categories."
+          )
+        ) {
+          historySet.clear();
+          saveHistory();
+          updateUI(true);
+        }
+      };
+
+      modal.querySelector("#resetActiveBtn").onclick = () => {
+        const activeArray = Array.from(activeSheets);
+        if (activeArray.length === 0) {
+          alert("Select a category to reset.");
+          return;
+        }
+
+        const names = activeArray.join(", ");
+        if (confirm(`Reset history for active categories:\n[ ${names} ]?`)) {
+          activeArray.forEach((sheetName) => {
+            const sheetUrls = categories[sheetName] || [];
+            sheetUrls.forEach((url) => historySet.delete(url));
+          });
+          saveHistory();
+          updateUI(true);
+        }
+      };
+
+      modal.querySelector("#closeUnusedBacklinks").onclick = () => {
+        modal.remove();
+        if (document.getElementById("llb-backdrop"))
+          document.getElementById("llb-backdrop").remove();
+      };
+
+      const backdrop = document.createElement("div");
+      backdrop.id = "llb-backdrop";
+      backdrop.style.cssText = `position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); z-index: 2147483646;`;
+      backdrop.onclick = () => {
+        modal.remove();
+        backdrop.remove();
+      };
+
+      document.body.appendChild(backdrop);
+      document.body.appendChild(modal);
+    }
+  );
+}
+
+// ============================================================
+// ⌨️ SHORTCUT: ALT + S -> STOCK BACKLINKS
+// ============================================================
+document.addEventListener("keydown", (e) => {
+  // Trigger: Alt + S
+  if (e.altKey && e.code === "KeyS") {
+    e.preventDefault(); // Prevent default browser action
+    showUnusedBacklinksModal(); // Open the popup
+  }
+});

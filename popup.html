@@ -369,7 +369,50 @@
             />
           </label>
         </div>
+
+        <!-- Add this inside <div id="activeView"> -->
+        <div style="margin-top: 10px; font-size: 12px; color: #6c5ce7">
+          🔄 Unused Backlinks: <span id="unusedBacklinksCount">0</span> saved
+        </div>
       </div>
+    </div>
+
+    <!-- UNUSED BACKLINKS -->
+    <div class="control-panel" style="border-left: 4px solid #6c5ce7">
+      <strong>🔗 Unused Backlinks</strong>
+      <div style="margin-top: 8px; font-size: 11px; color: #666">
+        Upload a list of candidate URLs. Only domains NOT in Watchtower will be
+        kept.
+      </div>
+      <label
+        style="
+          cursor: pointer;
+          display: block;
+          text-align: center;
+          border: 2px dashed #6c5ce7;
+          padding: 10px;
+          border-radius: 6px;
+          background: #f8f7ff;
+          margin-top: 8px;
+        "
+      >
+        Upload Backlink List (.xlsx)
+        <input
+          type="file"
+          id="backlinksInput"
+          accept=".xlsx"
+          style="display: none"
+        />
+      </label>
+      <div
+        id="backlinksStatus"
+        style="
+          text-align: center;
+          margin-top: 6px;
+          font-size: 11px;
+          color: #6c5ce7;
+        "
+      ></div>
     </div>
 
     <!-- FORM FIELDS -->

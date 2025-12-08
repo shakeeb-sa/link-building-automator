@@ -148,6 +148,15 @@ document.addEventListener("DOMContentLoaded", () => {
     isCatLocked = !!activeData.isCatLocked;
     updateLockUI();
     masterInput.innerHTML = activeData.masterHTML || "";
+
+    // Initialize unused backlinks count
+    chrome.storage.local.get(["unused_backlinks"], (data) => {
+      const unusedCountEl = document.getElementById("unusedBacklinksCount");
+      if (unusedCountEl) {
+        const unusedUrls = data.unused_backlinks || [];
+        unusedCountEl.textContent = unusedUrls.length;
+      }
+    });
   }
 
   function saveCurrentFormToMemory() {
@@ -772,6 +781,119 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // ============================================================
+  // 🔗 UNUSED BACKLINKS PROCESSOR (CATEGORIZED UPDATE)
+  // ============================================================
+  function processUnusedBacklinksFile(file) {
+    const reader = new FileReader();
+    const statusEl = document.getElementById("status");
+    if (!statusEl) return;
+
+    statusEl.textContent = "⏳ Categorizing Sheets...";
+    statusEl.style.color = "#6c5ce7";
+
+    reader.onload = function (e) {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: "array" });
+
+        // NEW STRUCTURE: Object instead of Array
+        // { "Sheet1": [url, url], "Sheet2": [url, url] }
+        let categorizedData = {};
+        let totalCount = 0;
+
+        // Get current Watchtower domains to filter against
+        chrome.storage.local.get(
+          ["watchtower_primary", "watchtower_secondary", "watchtower_pasted"],
+          (watchtowerData) => {
+            const primary = new Set(watchtowerData.watchtower_primary || []);
+            const secondary = new Set(
+              watchtowerData.watchtower_secondary || []
+            );
+            const pasted = new Set(watchtowerData.watchtower_pasted || []);
+
+            // Loop through EVERY sheet
+            workbook.SheetNames.forEach((sheetName) => {
+              const sheet = workbook.Sheets[sheetName];
+              const rows = XLSX.utils.sheet_to_json(sheet, {
+                header: 1,
+                defval: "",
+                blankrows: false,
+              });
+
+              let sheetUrls = new Set();
+
+              rows.forEach((row) => {
+                row.forEach((cellValue) => {
+                  if (cellValue && typeof cellValue === "string") {
+                    const cleanUrl = cellValue.trim();
+                    if (cleanUrl.startsWith("http")) {
+                      try {
+                        const domain = new URL(cleanUrl).hostname
+                          .replace(/^www\./, "")
+                          .toLowerCase();
+                        // Check Watchtower
+                        if (
+                          !primary.has(domain) &&
+                          !secondary.has(domain) &&
+                          !pasted.has(domain)
+                        ) {
+                          sheetUrls.add(cleanUrl);
+                        }
+                      } catch (err) {}
+                    }
+                  }
+                });
+              });
+
+              // Only save sheet if it has valid URLs
+              if (sheetUrls.size > 0) {
+                categorizedData[sheetName] = Array.from(sheetUrls);
+                totalCount += sheetUrls.size;
+              }
+            });
+
+            if (totalCount === 0) {
+              statusEl.textContent = "⚠️ No valid URLs found.";
+              statusEl.style.color = "#e17055";
+              return;
+            }
+
+            // Save to storage with NEW KEY
+            chrome.storage.local.set(
+              { unused_backlinks_categorized: categorizedData },
+              () => {
+                statusEl.textContent = `✅ Saved ${totalCount} links across ${
+                  Object.keys(categorizedData).length
+                } categories!`;
+                statusEl.style.color = "#00b894";
+
+                // Update UI Count
+                const unusedCountEl = document.getElementById(
+                  "unusedBacklinksCount"
+                );
+                if (unusedCountEl) unusedCountEl.textContent = totalCount;
+              }
+            );
+          }
+        );
+      } catch (err) {
+        console.error("Unused backlinks parse error:", err);
+        statusEl.textContent = "❌ Error reading file.";
+        statusEl.style.color = "#d63031";
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  // Attach to the upload input
+  const backlinksInput = document.getElementById("backlinksInput");
+  if (backlinksInput) {
+    backlinksInput.addEventListener("change", (e) => {
+      if (e.target.files[0]) processUnusedBacklinksFile(e.target.files[0]);
+    });
+  }
+
+  // ============================================================
   // 📘 GUIDE MODAL LOGIC
   // ============================================================
   const guideBtn = document.getElementById("guideBtn");
@@ -808,6 +930,15 @@ document.addEventListener("DOMContentLoaded", () => {
     xlsxInput2_active.addEventListener("change", (e) => {
       if (e.target.files[0]) processWatchtowerFile(e.target.files[0], true);
     });
+
+    // --- ADD THIS AFTER THE EXISTING FILE UPLOAD LISTENERS ---
+    // Attach to the unused backlinks upload input
+    const backlinksInput = document.getElementById("backlinksInput");
+    if (backlinksInput) {
+      backlinksInput.addEventListener("change", (e) => {
+        if (e.target.files[0]) processUnusedBacklinksFile(e.target.files[0]);
+      });
+    }
   }
 
   if (clearDbBtn) {

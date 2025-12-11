@@ -1,6 +1,30 @@
 // ⚡ LIGHTNING LINKBUILDER — GOD-TIER FINAL v20
 // HYBRID MODE: Real Data (Priority) + Fake Data (Fallback) + Smart Selects
 
+// ============================================================
+// 🛑 MASTER SWITCH (GLOBAL GATEKEEPER)
+// ============================================================
+let IS_LLB_ENABLED = true; // Default assumption
+
+// Load saved state immediately
+chrome.storage.local.get(["llb_master_switch"], (result) => {
+  // If explicitly saved as FALSE (OFF)
+  if (result.llb_master_switch === false) {
+    IS_LLB_ENABLED = false;
+
+    // 🧹 IMMEDIATE CLEANUP ON LOAD
+    // If the system was off, hide the UI elements that just loaded
+
+    // 1. Hide Floating Backlinks Button
+    const btn = document.getElementById("unused-backlinks-btn");
+    if (btn) btn.style.display = "none";
+
+    // 2. Hide Watchtower Shield (if active)
+    const shield = document.getElementById("llb-status-button");
+    if (shield) shield.style.display = "none";
+  }
+});
+
 let suggestionBox = null;
 
 const style = document.createElement("style");
@@ -342,12 +366,16 @@ let clicks = 0;
 document.addEventListener(
   "click",
   async (e) => {
+    // 🛑 GATEKEEPER: Stop if system is sleeping
+    if (!IS_LLB_ENABLED) return;
+
     const isInteractive = e.target.closest(
       'a, button, input, textarea, select, label, [role="button"]'
     );
     if (isInteractive) return;
 
     clicks++;
+    // ... (rest of the code stays exactly the same)
     if (clicks === 1) setTimeout(() => (clicks = 0), 600);
 
     if (clicks === 4) {
@@ -1454,6 +1482,9 @@ document.addEventListener("dblclick", (e) => {
   document.addEventListener(
     "contextmenu",
     (e) => {
+      // 🛑 GATEKEEPER: Stop if system is sleeping
+      if (typeof IS_LLB_ENABLED !== "undefined" && !IS_LLB_ENABLED) return;
+
       if (!e.ctrlKey && !e.altKey) return;
 
       const currentTime = new Date().getTime();
@@ -2238,9 +2269,11 @@ document.addEventListener("dblclick", (e) => {
 
 // ============================================================
 // 🚪 THE GATEWAY HUNTER (Alt + G)
-// Brute Force Menu for Login, Register, Admin, and Account pages
 // ============================================================
 document.addEventListener("keydown", (e) => {
+  // 🛑 GATEKEEPER: Stop if system is sleeping
+  if (!IS_LLB_ENABLED) return;
+
   // Trigger: Alt + G
   if (e.altKey && e.code === "KeyG") {
     e.preventDefault();
@@ -2419,6 +2452,9 @@ function createGatewayMenu() {
       "watchtower_acknowledged",
     ],
     (result) => {
+      // 🛑 GATEKEEPER: Stop if system is sleeping
+      if (typeof IS_LLB_ENABLED !== "undefined" && !IS_LLB_ENABLED) return;
+
       const primary = result.watchtower_primary || [];
       const secondary = result.watchtower_secondary || [];
       const pasted = result.watchtower_pasted || [];
@@ -2433,9 +2469,8 @@ function createGatewayMenu() {
         .replace(/^www\./i, "")
         .toLowerCase();
 
-      // 🧠 HANDLE ACKNOWLEDGED DOMAINS: SHOW STATUS BUTTON INSTEAD OF BANNER
+      // 🧠 HANDLE ACKNOWLEDGED DOMAINS
       if (acknowledged.has(currentHost)) {
-        // Re-run matching logic to get current status (in case Watchtower lists changed)
         const checkMatch = (list) => {
           return list.some((entry) => {
             if (!entry) return false;
@@ -2462,7 +2497,7 @@ function createGatewayMenu() {
           inPasted,
           exists,
         });
-        return; // Skip banner, show button only
+        return;
       }
 
       // 2. MATCHING LOGIC
@@ -2480,7 +2515,6 @@ function createGatewayMenu() {
         });
       };
 
-      // 3. IDENTIFY SOURCES
       const inPrimary = checkMatch(primary);
       const inSecondary = checkMatch(secondary);
       const inPasted = checkMatch(pasted);
@@ -2498,6 +2532,7 @@ function createGatewayMenu() {
       }
     }
   );
+  // ... (Keep the createWarningBanner and createGreenSignal functions below this as they
 
   // 🛑 RED BANNER (BLOCKER) — WITH ACKNOWLEDGMENT
   function createWarningBanner(host, source) {
@@ -2848,6 +2883,9 @@ let shockwaveTimer;
 let shockwaveVisual;
 
 document.addEventListener("mousedown", (e) => {
+  // 🛑 GATEKEEPER: Stop if system is sleeping
+  if (!IS_LLB_ENABLED) return;
+
   // Only Left Click (button 0)
   if (e.button !== 0) return;
 
@@ -3067,42 +3105,45 @@ async function triggerShockwave() {
   toast(`⚡ SHOCKWAVE: Forced ${count} Elements`);
 }
 
-// WATCHTOWER REAL-TIME BANNER — FINAL WORKING VERSION (WITH PASTED LIST SUPPORT)
-chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  if (msg.type !== "WATCHTOWER_STATUS") return;
+// ============================================================
+// PART 3: MESSAGING & UI
+// ============================================================
+chrome.runtime.onMessage.addListener((msg) => {
+  // 🛑 GATEKEEPER: Stop if system is sleeping
+  if (typeof IS_LLB_ENABLED !== "undefined" && !IS_LLB_ENABLED) return;
 
-  const { domain, exists, inPrimary, inSecondary, inPasted, total } = msg;
+  // Watchtower Banner Logic
+  if (msg.type === "WATCHTOWER_STATUS") {
+    const { domain, exists, inPrimary, inSecondary, inPasted, total } = msg;
 
-  // Remove old banner
-  document
-    .querySelectorAll(".llb-watchtower-banner")
-    .forEach((el) => el.remove());
+    // Remove old banner
+    document
+      .querySelectorAll(".llb-watchtower-banner")
+      .forEach((el) => el.remove());
 
-  const banner = document.createElement("div");
-  banner.className = "llb-watchtower-banner";
+    const banner = document.createElement("div");
+    banner.className = "llb-watchtower-banner";
 
-  if (exists) {
-    banner.textContent = `BLOCKED: ${domain.toUpperCase()} ALREADY IN WATCHTOWER`;
-    const sources = [];
-    if (inPrimary) sources.push("Primary DB");
-    if (inSecondary) sources.push("Secondary DB");
-    if (inPasted) sources.push("Pasted List");
-    if (sources.length > 0) {
-      banner.textContent += ` (${sources.join(" + ")})`;
+    if (exists) {
+      banner.textContent = `BLOCKED: ${domain.toUpperCase()} ALREADY IN WATCHTOWER`;
+      const sources = [];
+      if (inPrimary) sources.push("Primary DB");
+      if (inSecondary) sources.push("Secondary DB");
+      if (inPasted) sources.push("Pasted List");
+      if (sources.length > 0) {
+        banner.textContent += ` (${sources.join(" + ")})`;
+      }
+      banner.style.background = "linear-gradient(135deg, #e74c3c, #c0392b)";
+    } else {
+      banner.textContent = `GOOD TO GO: ${domain.toUpperCase()} — Safe to Post (${total} monitored)`;
+      banner.style.background = "linear-gradient(135deg, #27ae60, #1abc9c)";
     }
-    banner.style.background = "linear-gradient(135deg, #e74c3c, #c0392b)";
-  } else {
-    banner.textContent = `GOOD TO GO: ${domain.toUpperCase()} — Safe to Post (${total} monitored)`;
-    banner.style.background = "linear-gradient(135deg, #27ae60, #1abc9c)";
+
+    document.body.appendChild(banner);
+    setTimeout(() => banner.remove(), 3800);
   }
 
-  document.body.appendChild(banner);
-
-  setTimeout(() => banner.remove(), 3800);
-});
-
-// Also trigger on tab change / URL change
-chrome.runtime.onMessage.addListener((msg) => {
+  // Tab Update Logic
   if (msg.type === "TAB_UPDATED" || msg.type === "WATCHTOWER_CHECK_NOW") {
     setTimeout(() => {
       chrome.runtime.sendMessage({ type: "REQUEST_WATCHTOWER_CHECK" });
@@ -3441,9 +3482,81 @@ function showUnusedBacklinksModal() {
 // ⌨️ SHORTCUT: ALT + S -> STOCK BACKLINKS
 // ============================================================
 document.addEventListener("keydown", (e) => {
+  // 🛑 GATEKEEPER: Stop if system is sleeping
+  if (!IS_LLB_ENABLED) return;
+
   // Trigger: Alt + S
   if (e.altKey && e.code === "KeyS") {
-    e.preventDefault(); // Prevent default browser action
-    showUnusedBacklinksModal(); // Open the popup
+    e.preventDefault();
+    showUnusedBacklinksModal();
   }
 });
+
+// ============================================================
+// ⚡ MASTER SWITCH SHORTCUT (Alt + Q) - WITH INSTANT CLEANUP
+// ============================================================
+document.addEventListener(
+  "keydown",
+  (e) => {
+    // Trigger: Alt + Q
+    if (e.altKey && e.code === "KeyQ") {
+      IS_LLB_ENABLED = !IS_LLB_ENABLED;
+
+      // Save state
+      chrome.storage.local.set({ llb_master_switch: IS_LLB_ENABLED });
+
+      // 🧹 INSTANT CLEANUP ROUTINE (If turning OFF)
+      if (!IS_LLB_ENABLED) {
+        // 1. Kill Open Modals & Menus
+        const idsKillList = [
+          "unusedBacklinksModal", // Stock Backlinks Popup
+          "llb-backdrop", // The dark background
+          "llb-gateway-menu", // Gateway Menu
+          "qtf-overlay-menu", // Text Paste Menu
+          "llb-verifier-hud", // Email Hunter
+          "llb-warning-banner", // Watchtower Red
+          "llb-green-signal", // Watchtower Green
+          "llb-status-button", // Watchtower Shield
+        ];
+
+        idsKillList.forEach((id) => {
+          const el = document.getElementById(id);
+          if (el) el.remove();
+        });
+
+        // 2. Kill Class-based elements (Suggestions)
+        document
+          .querySelectorAll(".llb-suggestion")
+          .forEach((el) => el.remove());
+
+        // 3. Hide Floating Buttons (Unused Backlinks Button)
+        const btn = document.getElementById("unused-backlinks-btn");
+        if (btn) btn.style.display = "none";
+      } else {
+        // ⚡ RESTORE ROUTINE (If turning ON)
+        // Show Floating Button again
+        const btn = document.getElementById("unused-backlinks-btn");
+        if (btn) btn.style.display = "flex";
+      }
+
+      // Visual Feedback (Toast)
+      const msg = IS_LLB_ENABLED
+        ? "⚡ SYSTEM: ONLINE"
+        : "💤 SYSTEM: SLEEP MODE";
+      const bg = IS_LLB_ENABLED ? "#00b894" : "#2d3436";
+
+      const t = document.createElement("div");
+      t.style.cssText = `
+      position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+      background: ${bg}; color: white; padding: 15px 40px; border-radius: 50px;
+      z-index: 2147483647; font-family: system-ui, sans-serif; font-weight: 900;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.5); font-size: 16px; letter-spacing: 1px;
+      border: 2px solid rgba(255,255,255,0.2); pointer-events: none;
+    `;
+      t.innerText = msg;
+      document.body.appendChild(t);
+      setTimeout(() => t.remove(), 2500);
+    }
+  },
+  true
+);

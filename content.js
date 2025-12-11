@@ -1555,6 +1555,10 @@ document.addEventListener("dblclick", (e) => {
         let content = "";
         let isRich = false;
         if (savedType === "HTML Code (Clean)") content = cleanHtml(master);
+        else if (savedType === "Plain Text")
+          content = toPlainText(master); // ⬅️ ADD THIS
+        else if (savedType === "Raw Text")
+          content = toRawText(master); // ⬅️ ADD THIS
         else if (savedType === "Markdown (Inline)")
           content = toMarkdown(master);
         else if (savedType === "BBCode") content = toBBCode(master);
@@ -1581,6 +1585,42 @@ document.addEventListener("dblclick", (e) => {
     if (!html) return "";
     let clean = html.replace(/&nbsp;/g, " ");
     return clean.replace(/^\s*<p[^>]*>/i, "").replace(/<\/p>\s*$/i, "");
+  }
+
+  function toPlainText(html) {
+    if (!html) return "";
+    // 1. Replace block tags with newlines to preserve spacing
+    let formatted = html
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<\/p>/gi, "\n\n")
+      .replace(/<\/div>/gi, "\n")
+      .replace(/&nbsp;/g, " ");
+
+    // 2. Strip remaining tags and decode entities
+    let temp = document.createElement("div");
+    temp.innerHTML = formatted;
+    return temp.textContent.trim();
+  }
+
+  function toRawText(html) {
+    if (!html) return "";
+
+    // 1. Create temp container to parse HTML
+    let temp = document.createElement("div");
+    temp.innerHTML = html.replace(/&nbsp;/g, " ");
+
+    // 2. Convert links to [URL Anchor] format
+    temp.querySelectorAll("a").forEach((a) => {
+      const url = a.href;
+      const text = a.textContent.trim();
+      // EXACT FORMAT: [http://www.example.com link title]
+      a.replaceWith(`[${url} ${text}]`);
+    });
+
+    // 3. Clean up: flatten to single line, remove double spaces
+    return temp.textContent
+      .replace(/\s+/g, " ") // Turn all newlines/tabs into single spaces
+      .trim();
   }
 
   function toMarkdown(html) {
@@ -1686,6 +1726,10 @@ document.addEventListener("dblclick", (e) => {
             label: "HTML Code (Clean)",
             isRich: false,
           },
+          { text: toPlainText(master), label: "Plain Text", isRich: false },
+          // ⬇️ NEW
+          { text: toRawText(master), label: "Raw Text", isRich: false },
+          // ⬆️ NEW
           {
             text: toMarkdown(master),
             label: "Markdown (Inline)",
@@ -1786,18 +1830,28 @@ document.addEventListener("dblclick", (e) => {
           fontSize: "12px",
           display: "flex",
           alignItems: "center",
+          cursor: "pointer", // Make cursor a hand for the whole bar
+          userSelect: "none", // Prevent highlighting text on fast clicks
         });
 
         const rememberCheckbox = document.createElement("input");
         rememberCheckbox.type = "checkbox";
-        rememberCheckbox.id = "llb-remember-pref";
+        // Remove ID/htmlFor reliance, we handle click manually now
         rememberCheckbox.style.marginRight = "8px";
+        rememberCheckbox.style.cursor = "pointer";
         if (currentPref) rememberCheckbox.checked = true;
 
-        const label = document.createElement("label");
-        label.htmlFor = "llb-remember-pref";
+        const label = document.createElement("span"); // Changed to span
         label.innerText = `Remember for ${window.location.hostname}`;
-        label.style.cursor = "pointer";
+
+        // ⚡ THE FIX: Clicking the footer toggles the box
+        footer.onclick = (e) => {
+          // If they clicked the physical checkbox, let browser handle it.
+          // If they clicked the div or text, WE toggle it.
+          if (e.target !== rememberCheckbox) {
+            rememberCheckbox.checked = !rememberCheckbox.checked;
+          }
+        };
 
         footer.appendChild(rememberCheckbox);
         footer.appendChild(label);

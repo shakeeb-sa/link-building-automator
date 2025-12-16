@@ -590,7 +590,7 @@
         </div>
       </div>
 
-      <!-- SAVED FORMATS MANAGER -->
+       <!-- SAVED FORMATS MANAGER -->
       <div
         class="control-panel"
         style="border-left: 4px solid #6c5ce7; margin-top: 15px"
@@ -604,10 +604,32 @@
           "
         >
           <strong>💾 Saved Formats</strong>
-          <span id="formatStats" style="font-size: 10px; color: #aaa"
-            >Loading...</span
-          >
+          <label style="display:flex; align-items:center; gap:5px; font-size:10px; cursor:pointer;">
+             <input type="checkbox" id="goldMineToggle">
+             <span>Enable 🏆 Shuffle</span>
+          </label>
         </div>
+        
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
+           <span id="formatStats" style="font-size: 10px; color: #aaa">Loading...</span>
+        </div>
+
+        <!-- 🔍 NEW SEARCH BAR -->
+        <input 
+            type="text" 
+            id="formatSearch" 
+            placeholder="🔍 Search saved domains..." 
+            style="
+                width: 100%; 
+                padding: 6px; 
+                margin-bottom: 8px; 
+                border: 1px solid #dfe6e9; 
+                border-radius: 4px; 
+                font-size: 11px;
+                box-sizing: border-box; /* Ensures padding doesn't break width */
+            "
+        >
+
         <div
           id="savedFormatsList"
           style="
@@ -634,7 +656,6 @@
           🗑️ Clear All Saved Formats
         </button>
       </div>
-    </div>
 
     <!-- FOOTER -->
     <div class="footer">

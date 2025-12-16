@@ -3614,3 +3614,327 @@ document.addEventListener(
   },
   true
 );
+
+// ============================================================
+// 🏆 THE GOLD MINE (Saved Formats Shuffler)
+// ============================================================
+(function initGoldMine() {
+  let goldBtn = null;
+
+  // 1. Check State on Load
+  chrome.storage.local.get(["gold_mine_enabled"], (data) => {
+    if (data.gold_mine_enabled) createGoldButton();
+  });
+
+  // 2. Listen for Toggle Updates from Popup
+  chrome.runtime.onMessage.addListener((msg) => {
+    if (msg.type === "TOGGLE_GOLD_MINE") {
+      if (msg.enabled) createGoldButton();
+      else removeGoldButton();
+    }
+  });
+
+  function createGoldButton() {
+    if (document.getElementById("llb-gold-mine-btn")) return;
+    if (window !== window.top) return; // No iframes
+
+    goldBtn = document.createElement("div");
+    goldBtn.id = "llb-gold-mine-btn";
+    goldBtn.innerHTML = "🏆";
+    goldBtn.title = "Shuffle Saved Formats";
+    goldBtn.style.cssText = `
+      position: fixed;
+      bottom: 70px; /* Positioned above the Purple button */
+      left: 20px;
+      z-index: 2147483647;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: #f1c40f; /* Gold Color */
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      font-weight: bold;
+      font-size: 16px;
+      border: 2px solid #f39c12;
+      transition: transform 0.2s;
+    `;
+    goldBtn.onmouseenter = () => (goldBtn.style.transform = "scale(1.1)");
+    goldBtn.onmouseleave = () => (goldBtn.style.transform = "scale(1)");
+    goldBtn.onclick = () => showGoldMineModal();
+    document.body.appendChild(goldBtn);
+  }
+
+  function removeGoldButton() {
+    const btn = document.getElementById("llb-gold-mine-btn");
+    if (btn) btn.remove();
+  }
+
+  function showGoldMineModal() {
+    // Clean existing
+    const existing = document.getElementById("llb-gold-modal");
+    if (existing) existing.remove();
+
+    // 1. GATHER DATA (Sync + Local + Watchtower)
+    chrome.storage.sync.get(null, (syncData) => {
+      chrome.storage.local.get(null, (localData) => {
+        // Merge prefs
+        const allKeys = { ...localData, ...syncData };
+        const prefKeys = Object.keys(allKeys).filter((k) =>
+          k.startsWith("pref_")
+        );
+
+        // Get Watchtower Data
+        const primary = new Set(localData.watchtower_primary || []);
+        const secondary = new Set(localData.watchtower_secondary || []);
+        const pasted = new Set(localData.watchtower_pasted || []);
+        const history = new Set(localData.gold_mine_history || []);
+
+        // 2. FILTERING
+        let availableDomains = [];
+
+        prefKeys.forEach((key) => {
+          const domain = key.replace("pref_", "");
+          // CHECK 1: Watchtower Block
+          if (
+            primary.has(domain) ||
+            secondary.has(domain) ||
+            pasted.has(domain)
+          ) {
+            return; // Skip blocked
+          }
+          // CHECK 2: History (Rotation)
+          if (history.has(domain)) {
+            return; // Already used recently
+          }
+          availableDomains.push(domain);
+        });
+
+        // 3. LOGIC: RESET HISTORY IF EMPTY
+        if (availableDomains.length === 0 && prefKeys.length > 0) {
+          // We ran out of fresh links! Check if it's because of history or watchtower.
+          // If we have blocked everything via watchtower, we truly have 0.
+          // If we just used them all, we reset history.
+
+          // Simple check: Do we have ANY valid unblocked domains?
+          const allValidUnblocked = prefKeys
+            .map((k) => k.replace("pref_", ""))
+            .filter(
+              (d) => !primary.has(d) && !secondary.has(d) && !pasted.has(d)
+            );
+
+          if (allValidUnblocked.length > 0) {
+            // Reset History!
+            chrome.storage.local.remove("gold_mine_history");
+            availableDomains = allValidUnblocked; // Refill
+            alert("🔄 Cycle Complete! History reset. Starting fresh.");
+          }
+        }
+
+        // 4. SHUFFLE & PICK 5
+        const shuffled = availableDomains.sort(() => 0.5 - Math.random());
+        const selected = shuffled.slice(0, 5);
+
+        // 5. RENDER UI
+        renderGoldModal(selected, availableDomains.length);
+      });
+    });
+  }
+
+  function showGoldMineModal() {
+    // Clean existing
+    const existing = document.getElementById("llb-gold-modal");
+    if (existing) existing.remove();
+
+    // 1. GATHER DATA (Sync + Local + Watchtower)
+    chrome.storage.sync.get(null, (syncData) => {
+      chrome.storage.local.get(null, (localData) => {
+        // Merge prefs
+        const allKeys = { ...localData, ...syncData };
+        const prefKeys = Object.keys(allKeys).filter((k) =>
+          k.startsWith("pref_")
+        );
+
+        // Get Watchtower Data
+        const primary = new Set(localData.watchtower_primary || []);
+        const secondary = new Set(localData.watchtower_secondary || []);
+        const pasted = new Set(localData.watchtower_pasted || []);
+
+        // Get History
+        const history = new Set(localData.gold_mine_history || []);
+
+        // 2. CALCULATE POOLS
+        // A. Total Valid Pool (Everything saved minus Watchtower blocks)
+        const totalPool = prefKeys
+          .map((k) => k.replace("pref_", ""))
+          .filter(
+            (d) => !primary.has(d) && !secondary.has(d) && !pasted.has(d)
+          );
+
+        // B. Available Pool (Total Pool minus History)
+        const availableDomains = totalPool.filter((d) => !history.has(d));
+
+        // 3. AUTO-RESET LOGIC (If natural cycle complete)
+        if (availableDomains.length === 0 && totalPool.length > 0) {
+          // We ran out! Reset history automatically.
+          chrome.storage.local.remove("gold_mine_history");
+          // Recursively call to refresh immediately
+          showGoldMineModal();
+          return;
+        }
+
+        // 4. SHUFFLE & PICK 5
+        const shuffled = availableDomains.sort(() => 0.5 - Math.random());
+        const selected = shuffled.slice(0, 5);
+
+        // 5. RENDER UI (Pass stats)
+        renderGoldModal(selected, availableDomains.length, totalPool.length);
+      });
+    });
+  }
+
+  function renderGoldModal(domains, remainingCount, totalCount) {
+    const modal = document.createElement("div");
+    modal.id = "llb-gold-modal";
+    modal.style.cssText = `
+      position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      background: white; width: 420px; border-radius: 12px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5); z-index: 2147483647;
+      padding: 20px; font-family: -apple-system, sans-serif; color: #333;
+      border: 4px solid #f1c40f; display: flex; flex-direction: column; gap: 10px;
+    `;
+
+    // LIST HTML
+    let listHtml = "";
+    if (domains.length === 0) {
+      listHtml = `<div style="text-align:center; padding:20px; color:#7f8c8d; background:#f9f9f9; border-radius:8px;">
+        🛑 <b>No domains available.</b><br>
+        <small style="display:block; margin-top:5px;">Check if Watchtower is blocking everything.</small>
+      </div>`;
+    } else {
+      domains.forEach((d, i) => {
+        listHtml += `
+        <div style="padding:8px 10px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center; background:#fff;">
+           <div style="display:flex; gap:8px;">
+             <span style="font-weight:bold; color:#f39c12;">${i + 1}.</span>
+             <span style="font-weight:500;">${d}</span>
+           </div>
+           <a href="https://${d}" target="_blank" style="color:#3498db; text-decoration:none; font-size:12px;">Open ↗</a>
+        </div>`;
+      });
+    }
+
+    // STATS BAR HTML
+    // Calculate progress percentage
+    const usedCount = totalCount - remainingCount;
+    const progressPct =
+      totalCount > 0 ? Math.round((usedCount / totalCount) * 100) : 0;
+
+    const statsHtml = `
+      <div style="background:#fcf3cf; padding:10px; border-radius:6px; border:1px solid #f1c40f; display:flex; justify-content:space-between; align-items:center;">
+        <div>
+           <div style="font-size:10px; text-transform:uppercase; color:#7f8c8d; font-weight:bold;">Cycle Progress</div>
+           <div style="font-size:14px; font-weight:bold; color:#2c3e50;">
+              ${remainingCount} <span style="font-weight:normal; font-size:12px;">remaining</span> / ${totalCount} <span style="font-weight:normal; font-size:12px;">total</span>
+           </div>
+        </div>
+        <div style="text-align:right;">
+           <div style="font-size:18px; font-weight:bold; color:#f39c12;">${progressPct}%</div>
+           <div style="font-size:9px; color:#7f8c8d;">COMPLETE</div>
+        </div>
+      </div>
+    `;
+
+    modal.innerHTML = `
+      <!-- HEADER -->
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="font-size:20px;">🏆</span>
+          <strong style="font-size: 18px; color: #2d3436">Gold Mine</strong>
+        </div>
+        
+        <div style="display:flex; gap:10px; align-items:center;">
+           <button id="goldReset" title="Reset Cycle History" style="
+              background: none; border: 1px solid #e74c3c; color: #e74c3c; 
+              border-radius: 4px; padding: 4px 8px; font-size: 10px; font-weight: bold; cursor: pointer;
+           ">⚠️ RESET CYCLE</button>
+           <span id="closeGold" style="cursor: pointer; font-size: 24px; line-height:20px;">&times;</span>
+        </div>
+      </div>
+
+      <!-- STATS -->
+      ${statsHtml}
+
+      <!-- LIST -->
+      <div style="margin: 5px 0; max-height: 220px; overflow-y: auto; border:1px solid #eee; border-radius:6px;">
+        ${listHtml}
+      </div>
+
+      <!-- ACTIONS -->
+      <div style="display: flex; gap: 10px; margin-top: 5px;">
+         <button id="goldShuffle" style="
+            flex: 1; background: #95a5a6; color: white; border: none; padding: 12px;
+            border-radius: 6px; cursor: pointer; font-weight: bold; font-size:13px;
+          ">🔄 Shuffle</button>
+         <button id="goldOpen" style="
+            flex: 2; background: #f39c12; color: white; border: none; padding: 12px;
+            border-radius: 6px; cursor: pointer; font-weight: bold; font-size:13px; box-shadow: 0 4px 0 #d35400;
+          ">🚀 Open 5 Links</button>
+      </div>
+    `;
+
+    // BACKDROP
+    const backdrop = document.createElement("div");
+    backdrop.id = "llb-gold-backdrop";
+    backdrop.style.cssText = `position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2147483646;`;
+
+    // LISTENERS
+    const close = () => {
+      modal.remove();
+      backdrop.remove();
+    };
+
+    backdrop.onclick = close;
+    modal.querySelector("#closeGold").onclick = close;
+
+    modal.querySelector("#goldShuffle").onclick = () => {
+      close();
+      showGoldMineModal(); // Retry
+    };
+
+    // 🔴 MANUAL RESET LISTENER
+    modal.querySelector("#goldReset").onclick = () => {
+      if (
+        confirm(
+          "⚠️ RESET CYCLE?\n\nThis will clear your history. All domains will be available to shuffle again."
+        )
+      ) {
+        chrome.storage.local.remove("gold_mine_history", () => {
+          close();
+          showGoldMineModal(); // Reload with fresh stats
+        });
+      }
+    };
+
+    modal.querySelector("#goldOpen").onclick = () => {
+      if (domains.length === 0) return;
+
+      // 1. Add to History
+      chrome.storage.local.get(["gold_mine_history"], (data) => {
+        const hist = data.gold_mine_history || [];
+        const newHist = [...hist, ...domains];
+        chrome.storage.local.set({ gold_mine_history: newHist });
+      });
+
+      // 2. Open Tabs
+      domains.forEach((d) => window.open(`https://${d}`, "_blank"));
+      close();
+    };
+
+    document.body.appendChild(backdrop);
+    document.body.appendChild(modal);
+  }
+})();

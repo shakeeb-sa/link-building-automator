@@ -781,27 +781,32 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // ============================================================
-  // 🔗 UNUSED BACKLINKS PROCESSOR (CATEGORIZED UPDATE)
+  // 🔗 UNUSED BACKLINKS PROCESSOR (STRICT DOMAIN DEDUPLICATION)
   // ============================================================
   function processUnusedBacklinksFile(file) {
     const reader = new FileReader();
     const statusEl = document.getElementById("status");
     if (!statusEl) return;
 
-    statusEl.textContent = "⏳ Categorizing Sheets...";
+    statusEl.textContent = "⏳ Scanning & Deduplicating...";
     statusEl.style.color = "#6c5ce7";
+    statusEl.style.opacity = "1";
 
     reader.onload = function (e) {
       try {
         const data = new Uint8Array(e.target.result);
         const workbook = XLSX.read(data, { type: "array" });
 
-        // NEW STRUCTURE: Object instead of Array
-        // { "Sheet1": [url, url], "Sheet2": [url, url] }
+        // DATA STRUCTURES
         let categorizedData = {};
-        let totalCount = 0;
+        let totalUniqueCount = 0;
+        let duplicateCount = 0;
 
-        // Get current Watchtower domains to filter against
+        // ⚡ GLOBAL DOMAIN TRACKER (The Guard)
+        // This ensures a domain appears ONLY ONCE across the entire file.
+        let globalSeenDomains = new Set();
+
+        // Get current Watchtower domains to filter against (Safety Check)
         chrome.storage.local.get(
           ["watchtower_primary", "watchtower_secondary", "watchtower_pasted"],
           (watchtowerData) => {
@@ -820,7 +825,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 blankrows: false,
               });
 
-              let sheetUrls = new Set();
+              let validSheetUrls = []; // Array is fine here, we dedup via global set
 
               rows.forEach((row) => {
                 row.forEach((cellValue) => {
@@ -828,50 +833,70 @@ document.addEventListener("DOMContentLoaded", () => {
                     const cleanUrl = cellValue.trim();
                     if (cleanUrl.startsWith("http")) {
                       try {
-                        const domain = new URL(cleanUrl).hostname
+                        const urlObj = new URL(cleanUrl);
+                        const domain = urlObj.hostname
                           .replace(/^www\./, "")
                           .toLowerCase();
-                        // Check Watchtower
+
+                        // 1. WATCHTOWER CHECK (Safety)
                         if (
-                          !primary.has(domain) &&
-                          !secondary.has(domain) &&
-                          !pasted.has(domain)
+                          primary.has(domain) ||
+                          secondary.has(domain) ||
+                          pasted.has(domain)
                         ) {
-                          sheetUrls.add(cleanUrl);
+                          return; // Blocked by Watchtower
                         }
-                      } catch (err) {}
+
+                        // 2. GLOBAL DUPLICATE CHECK (The New Logic)
+                        if (globalSeenDomains.has(domain)) {
+                          duplicateCount++;
+                          return; // Already exists in a previous sheet (or earlier in this one)
+                        }
+
+                        // 3. SUCCESS - NEW UNIQUE DOMAIN
+                        globalSeenDomains.add(domain); // Mark as taken
+                        validSheetUrls.push(cleanUrl); // Save the full URL
+                      } catch (err) {
+                        // Invalid URL format, skip
+                      }
                     }
                   }
                 });
               });
 
               // Only save sheet if it has valid URLs
-              if (sheetUrls.size > 0) {
-                categorizedData[sheetName] = Array.from(sheetUrls);
-                totalCount += sheetUrls.size;
+              if (validSheetUrls.length > 0) {
+                categorizedData[sheetName] = validSheetUrls;
+                totalUniqueCount += validSheetUrls.length;
               }
             });
 
-            if (totalCount === 0) {
-              statusEl.textContent = "⚠️ No valid URLs found.";
+            if (totalUniqueCount === 0) {
+              statusEl.textContent = "⚠️ No new unique links found.";
               statusEl.style.color = "#e17055";
               return;
             }
 
-            // Save to storage with NEW KEY
+            // Save to storage
             chrome.storage.local.set(
               { unused_backlinks_categorized: categorizedData },
               () => {
-                statusEl.textContent = `✅ Saved ${totalCount} links across ${
-                  Object.keys(categorizedData).length
-                } categories!`;
+                // Detailed status message
+                statusEl.textContent = `✅ Saved ${totalUniqueCount} Unique Domains! (Removed ${duplicateCount} duplicates)`;
                 statusEl.style.color = "#00b894";
+                statusEl.style.fontSize = "11px";
 
-                // Update UI Count
+                // Update UI Count immediately
                 const unusedCountEl = document.getElementById(
                   "unusedBacklinksCount"
                 );
-                if (unusedCountEl) unusedCountEl.textContent = totalCount;
+                if (unusedCountEl) unusedCountEl.textContent = totalUniqueCount;
+
+                // Clear message after delay
+                setTimeout(() => {
+                  statusEl.textContent = "";
+                  statusEl.style.fontSize = ""; // reset
+                }, 4000);
               }
             );
           }
@@ -1874,6 +1899,74 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
   }
+
+  // ============================================================
+  // 🔍 SAVED FORMATS SEARCH LOGIC
+  // ============================================================
+  const formatSearch = document.getElementById("formatSearch");
+  const formatListContainer = document.getElementById("savedFormatsList");
+
+  if (formatSearch) {
+    formatSearch.addEventListener("input", (e) => {
+      const term = e.target.value.toLowerCase().trim();
+      const items = Array.from(formatListContainer.children);
+
+      let visibleCount = 0;
+
+      items.forEach((item) => {
+        // Skip if it's the "No saved formats" placeholder
+        if (item.textContent.includes("No saved formats")) return;
+
+        // The domain name is inside the item text content
+        const text = item.textContent.toLowerCase();
+
+        if (text.includes(term)) {
+          item.style.display = "flex";
+          visibleCount++;
+        } else {
+          item.style.display = "none";
+        }
+      });
+
+      // Optional: Update stats to show match count if user is searching
+      const statsEl = document.getElementById("formatStats");
+      if (term.length > 0 && statsEl) {
+        statsEl.textContent = `${visibleCount} matches`;
+      } else if (term.length === 0 && statsEl) {
+        // Reset to total count (requires checking data size, or just triggering a reload)
+        // Simple trick: count total flex items
+        const total = items.filter(
+          (i) => !i.textContent.includes("No saved formats")
+        ).length;
+        statsEl.textContent = `${total} saved`;
+      }
+    });
+  }
+  // ============================================================
+  // 🏆 GOLD MINE TOGGLE LOGIC
+  // ============================================================
+  const goldMineToggle = document.getElementById("goldMineToggle");
+
+  // 1. Load Saved State
+  chrome.storage.local.get(["gold_mine_enabled"], (data) => {
+    goldMineToggle.checked = !!data.gold_mine_enabled;
+  });
+
+  // 2. Handle Change
+  goldMineToggle.addEventListener("change", (e) => {
+    const isEnabled = e.target.checked;
+    chrome.storage.local.set({ gold_mine_enabled: isEnabled }, () => {
+      // Notify Content Script immediately to Show/Hide the button
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs[0]?.id) {
+          chrome.tabs.sendMessage(tabs[0].id, {
+            type: "TOGGLE_GOLD_MINE",
+            enabled: isEnabled,
+          });
+        }
+      });
+    });
+  });
 
   function renderFormatList(data, listEl, statsEl) {
     const formatEntries = Object.entries(data)

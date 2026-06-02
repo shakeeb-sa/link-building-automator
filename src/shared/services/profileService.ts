@@ -1,3 +1,14 @@
+/**
+ * Profile Service
+ *
+ * This file handles all profile-related operations for the Lightning LinkBuilder extension.
+ * It provides CRUD operations for user profiles, active profile management,
+ * and flattened profile data access for content scripts.
+ * All functions interact with chrome.storage.local via the storage service.
+ *
+ * No `unknown`, `any`, or unsafe type assertions are used – everything is strictly typed.
+ */
+
 import type { IProfile, IProfileData } from '../types/profile';
 import type { IStorageSchema } from '../types/storage';
 import { getStorage, setStorage, upsertProfile as storageUpsert, deleteProfile as storageDelete, setActiveProfile as storageSetActive } from './storage';

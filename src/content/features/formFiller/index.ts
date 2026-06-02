@@ -45,11 +45,9 @@ async function fillAllFields(): Promise<void> {
 
     for (const el of inputs) {
       if (el.disabled) continue;
-      // Skip read-only only if it's an input or textarea (select has no readOnly)
       if ('readOnly' in el && el.readOnly) continue;
       if (el.value && el.value.trim() !== '') continue;
 
-      // Get placeholder safely (only for input/textarea)
       let placeholder = '';
       if ('placeholder' in el) {
         placeholder = el.placeholder || '';
@@ -131,21 +129,34 @@ function onLongPress(): void {
   shockwaveFill(currentProfileData);
 }
 
+// Handle messages from background (keyboard shortcuts, etc.)
 function onCommandMessage(message: ExtensionMessage): void {
-  if (message.type === 'MASTER_SWITCH_TOGGLE' && message.payload.enabled) {
+  // QUAD_FILL triggers the form filling
+  if (message.type === 'QUAD_FILL') {
+    fillAllFields();
     return;
   }
-  if (message.type === 'GET_ACTIVE_PROFILE') return;
+  // MASTER_SWITCH_TOGGLE does NOT trigger filling; it's only for enabling/disabling.
+  if (message.type === 'MASTER_SWITCH_TOGGLE') {
+    return;
+  }
+  // GET_ACTIVE_PROFILE does not trigger filling either.
+  if (message.type === 'GET_ACTIVE_PROFILE') {
+    return;
+  }
+  // For any other message, fill as a fallback (legacy)
   fillAllFields();
 }
 
 function setupListeners(): void {
   setupClickCounter(onQuadClick, onLongPress);
-  chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendResponse) => {
+  chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendResponse) => {
+    // Handle MASTER_SWITCH_TOGGLE separately (just acknowledge)
     if (message.type === 'MASTER_SWITCH_TOGGLE') {
       sendResponse({ success: true });
       return false;
     }
+    // For all other messages, process via onCommandMessage
     onCommandMessage(message);
     sendResponse({ success: true });
     return false;

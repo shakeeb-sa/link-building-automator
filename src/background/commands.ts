@@ -34,15 +34,10 @@ export async function handleCommand(command: string): Promise<void> {
         break;
 
       case 'quad-fill':
+        // Send dedicated QUAD_FILL message to trigger form filling
         message = {
-          type: 'MASTER_SWITCH_TOGGLE',
-          payload: { enabled: true }, // Not actually toggling; we'll interpret as fill command
+          type: 'QUAD_FILL',
         };
-        // Alternatively, we could send a custom fill command.
-        // For simplicity, we'll repurpose MASTER_SWITCH_TOGGLE as a fill signal.
-        // In a real implementation, we would add a dedicated `FILL_FORM` message type.
-        // Since our messages.ts already has `MASTER_SWITCH_TOGGLE`, we'll use it.
-        // The content script will listen for this and perform the quad‑fill.
         break;
 
       case 'show-messages':

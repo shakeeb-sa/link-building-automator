@@ -5,7 +5,7 @@ import FormatManager from './components/FormatManager';
 import UnusedBacklinksPanel from './components/UnusedBacklinksPanel';
 import GoldMineToggle from './components/GoldMineToggle';
 import MasterSwitch from './components/MasterSwitch';
-import ProfileForm from './components/ProfileForm';
+import ProfileForm from './components/ProfileForm/ProfileForm';
 
 type TabId = 'profiles' | 'watchtower' | 'formats' | 'backlinks' | 'goldmine' | 'master';
 

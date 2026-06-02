@@ -22,7 +22,7 @@ export function removeBanner(): void {
  * @param sources – array of source strings (e.g., ['Primary DB', 'Pasted List'])
  */
 export function injectBanner(domain: string, isBlocked: boolean, sources: string[]): void {
-  // Remove any existing banner first
+  console.log('[Watchtower] injectBanner running with isBlocked =', isBlocked);
   removeBanner();
 
   const sourceText = sources.length > 0 ? ` (${sources.join(' + ')})` : '';
@@ -31,11 +31,12 @@ export function injectBanner(domain: string, isBlocked: boolean, sources: string
     : `✅ Domain "${domain}" is safe – no collisions.`;
 
   // Create banner container
-  const banner = document.createElement('div');
-  banner.id = 'llb-watchtower-banner';
-  // Keep all layout classes, but set background color directly via inline style
-  banner.className = `llb-fixed llb-top-0 llb-left-0 llb-w-full llb-z-[2147483647] llb-flex llb-items-center llb-justify-between llb-px-4 llb-py-3 llb-text-white llb-font-black llb-text-sm llb-uppercase llb-tracking-wider llb-shadow-lg`;
-  banner.style.backgroundColor = isBlocked ? '#dc2626' : '#10b981'; // red-600 / green-600
+// Create banner container
+const banner = document.createElement('div');
+banner.id = 'llb-watchtower-banner';
+banner.className = `llb-fixed llb-top-0 llb-left-0 llb-w-full llb-z-[2147483647] llb-flex llb-items-center llb-justify-between llb-px-4 llb-py-3 llb-text-white llb-font-black llb-text-sm llb-uppercase llb-tracking-wider llb-shadow-lg`;
+// Force background color with !important
+banner.setAttribute('style', `background-color: ${isBlocked ? '#dc2626' : '#10b981'} !important;`);
 
   // Message text
   const textSpan = document.createElement('span');

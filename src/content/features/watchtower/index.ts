@@ -13,10 +13,12 @@ function removeBanner(): void {
     bannerElement.remove();
     bannerElement = null;
   }
+  const spacer = document.getElementById('llb-banner-spacer');
+  if (spacer) spacer.remove();
 }
 
 /**
- * Injects a banner with Tailwind classes (using the `llb-` prefix).
+ * Injects a watchtower banner with inline background color.
  * @param isBlocked – true = red banner, false = green banner.
  * @param sources – string describing which list(s) blocked it.
  */
@@ -25,7 +27,9 @@ function injectBanner(isBlocked: boolean, sources: string): void {
 
   const banner = document.createElement('div');
   banner.id = 'llb-watchtower-banner';
-  banner.className = `llb-fixed llb-top-0 llb-left-0 llb-w-full llb-z-[2147483647] llb-flex llb-items-center llb-justify-between llb-px-4 llb-py-3 llb-text-white llb-font-black llb-text-sm llb-uppercase llb-tracking-wider llb-shadow-lg ${isBlocked ? 'llb-bg-red-600' : 'llb-bg-green-600'}`;
+  // Layout classes only – background color set via inline style
+  banner.className = `llb-fixed llb-top-0 llb-left-0 llb-w-full llb-z-[2147483647] llb-flex llb-items-center llb-justify-between llb-px-4 llb-py-3 llb-text-white llb-font-black llb-text-sm llb-uppercase llb-tracking-wider llb-shadow-lg`;
+  banner.style.backgroundColor = isBlocked ? '#dc2626' : '#10b981';
 
   const message = isBlocked
     ? `⚠️ Domain (${currentDomain}) is blocked in Watchtower (${sources})`
@@ -46,7 +50,7 @@ function injectBanner(isBlocked: boolean, sources: string): void {
   document.body.prepend(banner);
   bannerElement = banner;
 
-  // Add a spacer div to push page content down (optional)
+  // Add a spacer div to push page content down
   const spacer = document.createElement('div');
   spacer.id = 'llb-banner-spacer';
   spacer.style.height = '60px';
@@ -107,6 +111,5 @@ export function init(): () => void {
   return () => {
     removeBanner();
     // Storage listener cleanup is tricky; we'll keep it, but it's harmless.
-    // For completeness, we could store the listener reference and remove it.
   };
 }

@@ -11,7 +11,7 @@
  */
 
 import type { ExtensionMessage } from '../../shared/types/messages';
-import * as watchtowerService from '../../shared/services/watchtowerService';
+import * as watchtowerService from '../../shared/services/watchtower';
 
 export async function handleWatchtowerMessage(
   message: ExtensionMessage,

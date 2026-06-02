@@ -50,7 +50,6 @@ async function handleMessage(
       if (!active) {
         return { success: false, error: 'No active profile' };
       }
-      // Partial updates are safe – the service merges them.
       const updated = await profileService.updateProfile(active.id, {
         data: message.payload as IProfileData,
       });
@@ -74,7 +73,6 @@ async function handleMessage(
     }
 
     case 'UPDATE_WATCHTOWER_LISTS': {
-      // Placeholder – implement as needed
       return { success: true };
     }
 
@@ -140,12 +138,11 @@ async function handleMessage(
     // UI Feedback
     // ------------------------------------------------------------------------
     case 'SHOW_TOAST': {
-      // Toast is handled in the popup, not in background.
       return { success: true };
     }
 
     // ------------------------------------------------------------------------
-    // Navigation – these are handled in navigation.ts; we just acknowledge
+    // Navigation – handled in navigation.ts; just acknowledge
     // ------------------------------------------------------------------------
     case 'ACTIVATE_FAKEMAIL':
     case 'ACTIVATE_CONVERTER': {
@@ -160,7 +157,6 @@ async function handleMessage(
     }
 
     case 'GOLD_MINE_SHUFFLE': {
-      // Placeholder – return empty batch
       return {
         batch: {
           urls: [],
@@ -171,6 +167,34 @@ async function handleMessage(
     }
 
     // ------------------------------------------------------------------------
+    // Gateway Hunter (open overlay menu)
+    // ------------------------------------------------------------------------
+    case 'OPEN_GATEWAY_MENU': {
+      // Forward to the active tab's content script
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (tab?.id) {
+        await chrome.tabs.sendMessage(tab.id, message);
+      }
+      return { success: true };
+    }
+
+    // ------------------------------------------------------------------------
+    // Gold Mine Toggle
+    // ------------------------------------------------------------------------
+    case 'TOGGLE_GOLD_MINE': {
+      const { enabled } = message.payload;
+      await chrome.storage.local.set({ goldMineEnabled: enabled });
+      // Broadcast to all tabs
+      const tabs = await chrome.tabs.query({});
+      for (const tab of tabs) {
+        if (tab.id) {
+          chrome.tabs.sendMessage(tab.id, message).catch(() => {});
+        }
+      }
+      return { success: true };
+    }
+
+    // ------------------------------------------------------------------------
     // Context menu paste – not used in background
     // ------------------------------------------------------------------------
     case 'CONTEXT_MENU_PASTE': {
@@ -178,7 +202,7 @@ async function handleMessage(
     }
 
     // ------------------------------------------------------------------------
-    // Additional message types that may be sent (add as needed)
+    // Additional message types (implemented elsewhere or placeholders)
     // ------------------------------------------------------------------------
     case 'GET_ALL_PROFILES':
     case 'CREATE_PROFILE':
@@ -193,12 +217,11 @@ async function handleMessage(
     case 'GET_ALL_FORMATS':
     case 'DELETE_FORMAT':
     case 'CLEAR_ALL_FORMATS': {
-      // These are not yet implemented; return an error.
       return { success: false, error: 'Not implemented' };
     }
 
     default: {
-      // Exhaustive check – this will cause a compile error if a union member is missing.
+      // Exhaustive check – all union members must be handled above
       const exhaustiveCheck: never = message;
       throw new Error(`Unhandled message type: ${(exhaustiveCheck as ExtensionMessage).type}`);
     }

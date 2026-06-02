@@ -1,15 +1,16 @@
+// src/content/index.ts
 import type { ExtensionMessage } from '../shared/types/messages';
 import { handleError } from '../shared/utils/errorHandler';
 
 // Feature initialisers (each returns a cleanup function)
-import { init as initFormFiller } from './features/formFiller';
-import { init as initWatchtower } from './features/watchtower';
-import { init as initGatewayHunter } from './features/gatewayHunter';
-import { init as initEmailHunter } from './features/emailHunter';
-import { init as initUnusedBacklinks } from './features/unusedBacklinks';
-import { init as initGoldMine } from './features/goldMine';
-import { init as initUrlSwapper } from './features/urlSwapper';
-import { init as initContextMenu } from './features/contextMenu';
+import { init as initFormFiller } from '../content/features/formFiller';
+import { init as initWatchtower } from '../content/features/watchtower';
+import { init as initGatewayHunter } from '../content/features/gatewayHunter';
+import { init as initEmailHunter } from '../content/features/emailHunter';
+import { init as initUnusedBacklinks } from '../content/features/unusedBacklinks';
+import { init as initGoldMine } from '../content/features/goldMine';
+import { init as initUrlSwapper } from '../content/features/urlSwapper';
+import { init as initContextMenu } from '../content/features/contextMenu';
 
 // Store active cleanup functions
 type CleanupFunction = () => void;
@@ -28,24 +29,25 @@ function destroyAllFeatures(): void {
   activeCleanups = [];
 }
 
-// Helper to initialise all features
-function initAllFeatures(): void {
+// Helper to initialise all features (handles both sync and async inits)
+async function initAllFeatures(): Promise<void> {
   if (!isMasterEnabled) return;
 
-  const features = [
+  const features: Array<() => CleanupFunction | Promise<CleanupFunction>> = [
     initFormFiller,
     initWatchtower,
     initGatewayHunter,
     initEmailHunter,
     initUnusedBacklinks,
-    initGoldMine,
+    initGoldMine,      // async – returns Promise<CleanupFunction>
     initUrlSwapper,
     initContextMenu,
   ];
 
   for (const init of features) {
     try {
-      const cleanup = init();
+      const result = init();
+      const cleanup = result instanceof Promise ? await result : result;
       activeCleanups.push(cleanup);
     } catch (err) {
       handleError(`Content.initFeature: ${init.name}`, err, 'Feature initialisation failed');
@@ -62,25 +64,30 @@ function handleMasterSwitchToggle(enabled: boolean): void {
     destroyAllFeatures();
     console.log('[Lightning LinkBuilder] Master switch disabled – features destroyed');
   } else {
-    initAllFeatures();
+    initAllFeatures().catch((err) => {
+      handleError('Content.initAllFeatures', err, 'Failed to re-initialise features');
+    });
     console.log('[Lightning LinkBuilder] Master switch enabled – features initialised');
   }
 }
 
-// Handle gold mine toggle message (forward to gold mine feature)
+// Handle gold mine toggle message
 function handleGoldMineToggle(enabled: boolean): void {
-  // Gold mine feature will listen to its own messages; we can also broadcast
-  // but the feature module already listens. No need to duplicate.
-  // However, to avoid multiple listeners, we can just pass the message.
-  // The feature will handle it internally.
+  // The gold mine feature listens to its own messages via chrome.runtime.onMessage.
+  // This function is a placeholder for any additional logic if needed.
+  console.log('[Lightning LinkBuilder] Gold mine toggle received:', enabled);
 }
 
 // Message router
-function onMessage(message: ExtensionMessage, _sender: chrome.runtime.MessageSender, sendResponse: (response?: unknown) => void): boolean {
+function onMessage(
+  message: ExtensionMessage,
+  _sender: chrome.runtime.MessageSender,
+  sendResponse: (response?: unknown) => void
+): boolean {
   if (message.type === 'MASTER_SWITCH_TOGGLE') {
     handleMasterSwitchToggle(message.payload.enabled);
     sendResponse({ success: true });
-    return false; // No async response needed
+    return false;
   }
 
   if (message.type === 'TOGGLE_GOLD_MINE') {
@@ -89,18 +96,21 @@ function onMessage(message: ExtensionMessage, _sender: chrome.runtime.MessageSen
     return false;
   }
 
-  // Other messages are handled by individual features (e.g., context menu)
-  // We don't need to handle them here.
+  // Other messages are handled by individual features
   return false;
 }
 
-// Initialise master switch state from storage
+// Load master switch state from storage
 async function loadMasterSwitchState(): Promise<void> {
   return new Promise((resolve) => {
     chrome.storage.local.get(['masterSwitchEnabled'], (result) => {
       if (chrome.runtime.lastError) {
-        handleError('Content.loadMasterSwitchState', chrome.runtime.lastError, 'Failed to load master switch state');
-        isMasterEnabled = true; // Default to enabled
+        handleError(
+          'Content.loadMasterSwitchState',
+          chrome.runtime.lastError,
+          'Failed to load master switch state'
+        );
+        isMasterEnabled = true;
       } else {
         isMasterEnabled = result.masterSwitchEnabled !== false;
       }
@@ -119,7 +129,7 @@ async function init(): Promise<void> {
   await loadMasterSwitchState();
   setupMessageListener();
   if (isMasterEnabled) {
-    initAllFeatures();
+    await initAllFeatures();
   }
   console.log('[Lightning LinkBuilder] Content script initialised, master enabled:', isMasterEnabled);
 }

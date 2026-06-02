@@ -3,7 +3,9 @@
   "name": "⚡ Lightning LinkBuilder",
   "version": "10.0.0",
   "description": "Industrial-grade SEO link building automation – smart form filler, domain collision detector, and outreach tools.",
-  "author": "LinkFlow Pro",
+  "author": {
+    "email": "support@linkflowpro.com"
+  },
   "homepage_url": "https://linkflowpro.com",
   "permissions": [
     "storage",

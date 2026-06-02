@@ -5,6 +5,7 @@ import FormatManager from './components/FormatManager';
 import UnusedBacklinksPanel from './components/UnusedBacklinksPanel';
 import GoldMineToggle from './components/GoldMineToggle';
 import MasterSwitch from './components/MasterSwitch';
+import ProfileForm from './components/ProfileForm';
 
 type TabId = 'profiles' | 'watchtower' | 'formats' | 'backlinks' | 'goldmine' | 'master';
 
@@ -12,7 +13,7 @@ const Popup: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabId>('profiles');
   const [isLoading, setIsLoading] = useState(true);
 
-  // Simulate initial load (or you can remove this if no async load needed)
+  // Simulate initial load
   useEffect(() => {
     const timer = setTimeout(() => setIsLoading(false), 100);
     return () => clearTimeout(timer);
@@ -62,6 +63,11 @@ const Popup: React.FC = () => {
         {activeTab === 'backlinks' && <UnusedBacklinksPanel />}
         {activeTab === 'goldmine' && <GoldMineToggle />}
         {activeTab === 'master' && <MasterSwitch />}
+      </div>
+
+      {/* Profile Form Fields - Always visible below tabs when a profile is active */}
+      <div className="llb-p-4 llb-border-t llb-border-slate-100 llb-bg-slate-50">
+        <ProfileForm />
       </div>
 
       {/* Footer */}

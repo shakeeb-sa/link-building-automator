@@ -42,7 +42,7 @@ export function useUnusedBacklinks(): UseUnusedBacklinksReturn {
       }>({
         type: 'GET_UNUSED_BACKLINKS' as any, // TODO: add to messages.ts
       });
-      setCategorized(response.categorized);
+      setCategorized(response.categorized || {});
       setBatch(response.batch);
     } catch (err) {
       handleError('useUnusedBacklinks.fetchData', err, 'Failed to load unused backlinks');
@@ -97,11 +97,15 @@ export function useUnusedBacklinks(): UseUnusedBacklinksReturn {
   }, [batch]);
 
   const getAvailableSheets = useCallback(() => {
+    // Safety check: ensure categorized is an object before calling Object.keys
+    if (!categorized || typeof categorized !== 'object') {
+      return [];
+    }
     return Object.keys(categorized);
   }, [categorized]);
 
   return {
-    categorized,
+    categorized: categorized || {},
     batch,
     isLoading,
     shuffle,

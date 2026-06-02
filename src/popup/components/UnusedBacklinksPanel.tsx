@@ -17,8 +17,10 @@ const UnusedBacklinksPanel: React.FC = () => {
   // Initialize active sheets with all available sheets
   useEffect(() => {
     const sheets = getAvailableSheets();
-    setActiveSheetsState(sheets);
-    setActiveSheets(sheets);
+    if (sheets && sheets.length > 0) {
+      setActiveSheetsState(sheets);
+      setActiveSheets(sheets);
+    }
   }, [categorized, getAvailableSheets, setActiveSheets]);
 
   const handleSheetToggle = (sheet: string) => {
@@ -83,7 +85,7 @@ const UnusedBacklinksPanel: React.FC = () => {
                 className="llb-w-3 llb-h-3"
               />
               <span>{sheet}</span>
-              <span className="llb-text-slate-400">({categorized[sheet]?.length || 0})</span>
+              <span className="llb-text-slate-400">{(categorized?.[sheet]?.length || 0)}</span>
             </label>
           ))}
         </div>

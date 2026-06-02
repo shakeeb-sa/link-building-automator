@@ -29,14 +29,30 @@ module.exports = {
           loader: 'ts-loader',
           options: {
             configFile: path.resolve(__dirname, 'tsconfig.json'),
-            transpileOnly: true, // Skip type checking during build (faster)
+            transpileOnly: true,
           },
         },
         exclude: /node_modules/,
       },
       {
         test: /\.css$/,
-        use: ['style-loader', 'css-loader', 'postcss-loader'],
+        use: [
+          'style-loader',
+          {
+            loader: 'css-loader',
+            options: {
+              importLoaders: 1,
+            },
+          },
+          {
+            loader: 'postcss-loader',
+            options: {
+              postcssOptions: {
+                config: path.resolve(__dirname, 'postcss.config.cjs'),
+              },
+            },
+          },
+        ],
       },
     ],
   },
@@ -44,7 +60,6 @@ module.exports = {
     new CopyPlugin({
       patterns: [
         { from: 'src/manifest.json', to: 'manifest.json' },
-        { from: 'public/icons', to: 'icons', noErrorOnMissing: true },
       ],
     }),
     new HtmlWebpackPlugin({

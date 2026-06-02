@@ -37,7 +37,7 @@ const Popup: React.FC = () => {
   }
 
   return (
-    <div className="llb-w-96 llb-bg-white llb-shadow-lg llb-rounded-lg llb-overflow-hidden">
+    <div className="llb-w-[480px] llb-bg-white llb-shadow-lg llb-rounded-lg llb-overflow-hidden">
       {/* Tab Bar */}
       <div className="llb-flex llb-border-b llb-border-slate-200 llb-bg-slate-50">
         {tabs.map((tab) => (

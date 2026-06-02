@@ -42,6 +42,9 @@ const ProfileManager: React.FC = () => {
     return <div className="llb-text-center llb-py-8 llb-text-slate-400">Loading profiles...</div>;
   }
 
+  // Ensure profiles is always an array
+  const safeProfiles = profiles || [];
+
   return (
     <div className="llb-space-y-4">
       {/* Create new profile */}
@@ -63,11 +66,11 @@ const ProfileManager: React.FC = () => {
       </div>
 
       {/* Profile list */}
-      {profiles.length === 0 ? (
+      {safeProfiles.length === 0 ? (
         <div className="llb-text-center llb-py-8 llb-text-slate-400 llb-text-sm">No profiles. Create one above.</div>
       ) : (
         <div className="llb-space-y-2">
-          {profiles.map((profile) => {
+          {safeProfiles.map((profile) => {
             const isActive = activeProfileId === profile.id;
             const isEditing = editingId === profile.id;
 

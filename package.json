@@ -22,6 +22,7 @@
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.2/xlsx-0.20.2.tgz"
   },
   "devDependencies": {
+    "@crxjs/vite-plugin": "^2.0.0-beta.23",
     "@testing-library/react": "^14.3.1",
     "@types/chrome": "^0.0.263",
     "@types/node": "^20.19.41",
@@ -29,6 +30,7 @@
     "@types/react-dom": "^18.3.7",
     "@typescript-eslint/eslint-plugin": "^7.18.0",
     "@typescript-eslint/parser": "^7.18.0",
+    "@vitejs/plugin-react": "^4.2.1",
     "@vitest/ui": "^1.6.1",
     "autoprefixer": "^10.5.0",
     "copy-webpack-plugin": "^14.0.0",

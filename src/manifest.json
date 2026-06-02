@@ -3,9 +3,6 @@
   "name": "⚡ Lightning LinkBuilder",
   "version": "10.0.0",
   "description": "Industrial-grade SEO link building automation – smart form filler, domain collision detector, and outreach tools.",
-  "author": {
-    "email": "support@linkflowpro.com"
-  },
   "homepage_url": "https://linkflowpro.com",
   "permissions": [
     "storage",
@@ -17,31 +14,19 @@
     "<all_urls>"
   ],
   "background": {
-    "service_worker": "background.js",
-    "type": "module"
+    "service_worker": "background.js"
   },
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
       "js": ["content.js"],
-      "css": ["content.css"],
       "run_at": "document_end",
       "all_frames": true
     }
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Lightning LinkBuilder",
-    "default_icon": {
-      "16": "icons/icon16.png",
-      "48": "icons/icon48.png",
-      "128": "icons/icon128.png"
-    }
-  },
-  "icons": {
-    "16": "icons/icon16.png",
-    "48": "icons/icon48.png",
-    "128": "icons/icon128.png"
+    "default_title": "Lightning LinkBuilder"
   },
   "commands": {
     "fill-profile-1": {
@@ -71,7 +56,7 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["popup.html", "content.css"],
+      "resources": ["popup.html"],
       "matches": ["<all_urls>"]
     }
   ]

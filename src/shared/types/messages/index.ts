@@ -50,7 +50,7 @@ import type { ActivateConverterMessage } from './navigation';
 import type { MasterSwitchToggleMessage } from './toggle';
 import type { GoldMineShuffleMessage } from './toggle';
 import type { ToggleGoldMineMessage } from './toggle';
-import type { QuadFillMessage } from './toggle';
+import type { QuadFillMessage } from './toggle';        // <-- added
 import type { ShowToastMessage } from './ui';
 import type { ContextMenuPasteMessage } from './ui';
 
@@ -88,6 +88,6 @@ export type ExtensionMessage =
   | MasterSwitchToggleMessage
   | GoldMineShuffleMessage
   | ToggleGoldMineMessage
-  | QuadFillMessage
+  | QuadFillMessage           // <-- added
   | ShowToastMessage
   | ContextMenuPasteMessage;

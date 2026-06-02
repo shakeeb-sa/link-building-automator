@@ -33,9 +33,9 @@ export function injectBanner(domain: string, isBlocked: boolean, sources: string
   // Create banner container
   const banner = document.createElement('div');
   banner.id = 'llb-watchtower-banner';
-  banner.className = `llb-fixed llb-top-0 llb-left-0 llb-w-full llb-z-[2147483647] llb-flex llb-items-center llb-justify-between llb-px-4 llb-py-3 llb-text-white llb-font-black llb-text-sm llb-uppercase llb-tracking-wider llb-shadow-lg ${
-    isBlocked ? 'llb-bg-red-600' : 'llb-bg-green-600'
-  }`;
+  // Keep all layout classes, but set background color directly via inline style
+  banner.className = `llb-fixed llb-top-0 llb-left-0 llb-w-full llb-z-[2147483647] llb-flex llb-items-center llb-justify-between llb-px-4 llb-py-3 llb-text-white llb-font-black llb-text-sm llb-uppercase llb-tracking-wider llb-shadow-lg`;
+  banner.style.backgroundColor = isBlocked ? '#dc2626' : '#10b981'; // red-600 / green-600
 
   // Message text
   const textSpan = document.createElement('span');

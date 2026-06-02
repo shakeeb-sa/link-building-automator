@@ -5,6 +5,12 @@ module.exports = {
     './src/content/**/*.ts',
     './src/shared/**/*.ts',
   ],
+  safelist: [
+    'llb-bg-red-600',
+    'llb-bg-green-600',
+    'llb-bg-navy-800',
+    'llb-text-peach-500',
+  ],
   corePlugins: {
     preflight: false,
   },

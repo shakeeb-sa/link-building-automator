@@ -2,7 +2,8 @@
  * Content script orchestrator.
  *
  * Loads master switch state, sets up message handling,
- * and manages feature lifecycle.
+ * manages feature lifecycle, and initialises the web app
+ * message listener for profile syncing.
  *
  * No `unknown`, `any`, or unsafe type assertions are used.
  */
@@ -11,6 +12,7 @@ import { handleError } from '../shared/utils/errorHandler';
 import { loadMasterState, isMasterEnabled, setMasterEnabled } from './state';
 import { initAllFeatures, destroyAllFeatures } from './featureManager';
 import { setupMessageListener } from './messageHandler';
+import { setupWebAppMessageListener } from './webAppMessageHandler';
 
 let currentCleanups: (() => void)[] = [];
 
@@ -47,6 +49,10 @@ async function init(): Promise<void> {
   if (isMasterEnabled()) {
     currentCleanups = await initAllFeatures();
   }
+
+  // Listen for messages from the web app (profile sync)
+  setupWebAppMessageListener();
+
   console.log('[Lightning LinkBuilder] Content script initialised, master enabled:', isMasterEnabled());
 }
 

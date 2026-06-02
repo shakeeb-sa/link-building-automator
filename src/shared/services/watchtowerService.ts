@@ -26,6 +26,20 @@ export async function addPrimaryDomains(domains: string[]): Promise<boolean> {
 }
 
 /**
+ * Gets the entire primary domain list.
+ * @returns array of primary domains
+ */
+export async function getPrimaryDomains(): Promise<string[]> {
+  try {
+    const storage = await getStorage();
+    return storage.watchtower.primary;
+  } catch (err) {
+    handleError('WatchtowerService.getPrimaryDomains', err, 'Failed to get primary domains');
+    return [];
+  }
+}
+
+/**
  * Adds domains to the secondary list.
  */
 export async function addSecondaryDomains(domains: string[]): Promise<boolean> {
@@ -46,6 +60,20 @@ export async function addSecondaryDomains(domains: string[]): Promise<boolean> {
 }
 
 /**
+ * Gets the entire secondary domain list.
+ * @returns array of secondary domains
+ */
+export async function getSecondaryDomains(): Promise<string[]> {
+  try {
+    const storage = await getStorage();
+    return storage.watchtower.secondary;
+  } catch (err) {
+    handleError('WatchtowerService.getSecondaryDomains', err, 'Failed to get secondary domains');
+    return [];
+  }
+}
+
+/**
  * Adds domains to the pasted list.
  */
 export async function addPastedDomains(domains: string[]): Promise<boolean> {
@@ -62,6 +90,20 @@ export async function addPastedDomains(domains: string[]): Promise<boolean> {
   } catch (err) {
     handleError('WatchtowerService.addPastedDomains', err, 'Failed to add pasted domains');
     return false;
+  }
+}
+
+/**
+ * Gets the entire pasted domain list.
+ * @returns array of pasted domains
+ */
+export async function getPastedDomains(): Promise<string[]> {
+  try {
+    const storage = await getStorage();
+    return storage.watchtower.pasted;
+  } catch (err) {
+    handleError('WatchtowerService.getPastedDomains', err, 'Failed to get pasted domains');
+    return [];
   }
 }
 

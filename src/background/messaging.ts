@@ -72,6 +72,13 @@ async function handleMessage(
       };
     }
 
+    case 'GET_WATCHTOWER_LISTS': {
+      const primary = await watchtowerService.getPrimaryDomains();
+      const secondary = await watchtowerService.getSecondaryDomains();
+      const pasted = await watchtowerService.getPastedDomains();
+      return { primary, secondary, pasted };
+    }
+
     case 'UPDATE_WATCHTOWER_LISTS': {
       return { success: true };
     }
@@ -170,7 +177,6 @@ async function handleMessage(
     // Gateway Hunter (open overlay menu)
     // ------------------------------------------------------------------------
     case 'OPEN_GATEWAY_MENU': {
-      // Forward to the active tab's content script
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (tab?.id) {
         await chrome.tabs.sendMessage(tab.id, message);
@@ -184,7 +190,6 @@ async function handleMessage(
     case 'TOGGLE_GOLD_MINE': {
       const { enabled } = message.payload;
       await chrome.storage.local.set({ goldMineEnabled: enabled });
-      // Broadcast to all tabs
       const tabs = await chrome.tabs.query({});
       for (const tab of tabs) {
         if (tab.id) {
@@ -202,26 +207,80 @@ async function handleMessage(
     }
 
     // ------------------------------------------------------------------------
-    // Additional message types (implemented elsewhere or placeholders)
+    // Profile CRUD operations (implemented)
     // ------------------------------------------------------------------------
-    case 'GET_ALL_PROFILES':
-    case 'CREATE_PROFILE':
-    case 'UPDATE_PROFILE':
-    case 'DELETE_PROFILE':
-    case 'ADD_PRIMARY_DOMAINS':
-    case 'ADD_SECONDARY_DOMAINS':
-    case 'SET_PASTED_DOMAINS':
-    case 'CLEAR_PRIMARY_DOMAINS':
-    case 'CLEAR_SECONDARY_DOMAINS':
-    case 'CLEAR_PASTED_DOMAINS':
-    case 'GET_ALL_FORMATS':
-    case 'DELETE_FORMAT':
+    case 'GET_ALL_PROFILES': {
+      const profiles = await profileService.getAllProfiles();
+      return { profiles };
+    }
+
+    case 'CREATE_PROFILE': {
+      const profile = await profileService.createProfile(message.payload.name);
+      return { profile };
+    }
+
+    case 'UPDATE_PROFILE': {
+      const success = await profileService.updateProfile(message.payload.id, message.payload.updates);
+      return { success };
+    }
+
+    case 'DELETE_PROFILE': {
+      const success = await profileService.deleteProfile(message.payload.id);
+      return { success };
+    }
+
+    // ------------------------------------------------------------------------
+    // Watchtower CRUD operations (implemented)
+    // ------------------------------------------------------------------------
+    case 'ADD_PRIMARY_DOMAINS': {
+      const success = await watchtowerService.addPrimaryDomains(message.payload.domains);
+      return { success };
+    }
+
+    case 'ADD_SECONDARY_DOMAINS': {
+      const success = await watchtowerService.addSecondaryDomains(message.payload.domains);
+      return { success };
+    }
+
+    case 'SET_PASTED_DOMAINS': {
+      const success = await watchtowerService.setPastedDomains(message.payload.domains);
+      return { success };
+    }
+
+    case 'CLEAR_PRIMARY_DOMAINS': {
+      const success = await watchtowerService.clearPrimaryList();
+      return { success };
+    }
+
+    case 'CLEAR_SECONDARY_DOMAINS': {
+      const success = await watchtowerService.clearSecondaryList();
+      return { success };
+    }
+
+    case 'CLEAR_PASTED_DOMAINS': {
+      const success = await watchtowerService.clearPastedList();
+      return { success };
+    }
+
+    // ------------------------------------------------------------------------
+    // Format memory CRUD operations (implemented)
+    // ------------------------------------------------------------------------
+    case 'GET_ALL_FORMATS': {
+      const formats = await formatMemoryService.getAllFormats();
+      return { formats };
+    }
+
+    case 'DELETE_FORMAT': {
+      const success = await formatMemoryService.deleteFormat(message.payload.domain);
+      return { success };
+    }
+
     case 'CLEAR_ALL_FORMATS': {
-      return { success: false, error: 'Not implemented' };
+      const success = await formatMemoryService.clearAllFormats();
+      return { success };
     }
 
     default: {
-      // Exhaustive check – all union members must be handled above
       const exhaustiveCheck: never = message;
       throw new Error(`Unhandled message type: ${(exhaustiveCheck as ExtensionMessage).type}`);
     }

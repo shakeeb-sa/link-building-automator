@@ -11,6 +11,7 @@ export type MessageType =
   | 'SET_ACTIVE_PROFILE'
   | 'UPDATE_PROFILE_DATA'
   | 'GET_WATCHTOWER_STATUS'
+  | 'GET_WATCHTOWER_LISTS'
   | 'UPDATE_WATCHTOWER_LISTS'
   | 'GET_FORMAT_MEMORY'
   | 'SET_FORMAT_MEMORY'
@@ -73,6 +74,9 @@ export type GetWatchtowerStatusMessage = BaseMessage<'GET_WATCHTOWER_STATUS'> & 
   payload: { domain: string };
 };
 export type GetWatchtowerStatusResponse = IWatchtowerStatus;
+
+export type GetWatchtowerListsMessage = BaseMessage<'GET_WATCHTOWER_LISTS'>;
+export type GetWatchtowerListsResponse = { primary: string[]; secondary: string[]; pasted: string[] };
 
 export type UpdateWatchtowerListsMessage = BaseMessage<'UPDATE_WATCHTOWER_LISTS'> & {
   payload: { lists: IWatchtowerLists };
@@ -212,6 +216,7 @@ export type ExtensionMessage =
   | SetActiveProfileMessage
   | UpdateProfileDataMessage
   | GetWatchtowerStatusMessage
+  | GetWatchtowerListsMessage
   | UpdateWatchtowerListsMessage
   | GetFormatMemoryMessage
   | SetFormatMemoryMessage

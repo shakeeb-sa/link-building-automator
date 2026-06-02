@@ -1,160 +1,76 @@
 /**
- * useProfileForm Hook
+ * useProfileForm Hook (Refactored)
  *
- * This hook encapsulates all state and side effects for the profile form.
- * It loads the active profile's data, provides debounced auto‑save,
- * and exposes field update methods and the category lock toggle.
+ * Composes three focused hooks:
+ * - useProfileLoad: loads data from storage
+ * - useProfileFormState: manages local editable state
+ * - useProfileSave: saves changes immediately
  *
- * No `unknown`, `any`, or unsafe type assertions are used – everything is strictly typed.
+ * Returns the same public API as before, but with immediate saving.
+ *
+ * No `unknown`, `any`, or unsafe type assertions are used.
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
-import type { IProfileData } from '../../shared/types/profile';
-import { getFlattenedProfileData } from '../../shared/services/profileService';
+import { useEffect } from 'react';
 import { useProfiles } from './useProfiles';
-import { handleError } from '../../shared/utils/errorHandler';
+import { useProfileLoad } from './useProfileLoad';
+import { useProfileFormState } from './useProfileFormState';
+import { useProfileSave } from './useProfileSave';
 
 export interface UseProfileFormReturn {
-  formData: IProfileData;
-  isCatLocked: boolean;
+  formData: ReturnType<typeof useProfileFormState>['formData'];
+  isCatLocked: ReturnType<typeof useProfileFormState>['isCatLocked'];
   isLoading: boolean;
-  activeProfileId: string | null;  // <-- add this
-  updateField: (field: keyof IProfileData, value: string) => void;
-  toggleCategoryLock: () => void;
+  activeProfileId: string | null;
+  updateField: ReturnType<typeof useProfileFormState>['updateField'];
+  toggleCategoryLock: ReturnType<typeof useProfileFormState>['toggleCategoryLock'];
   refresh: () => Promise<void>;
 }
 
 export function useProfileForm(): UseProfileFormReturn {
-  const { activeProfileId, updateProfile, refreshProfiles } = useProfiles();
-  const [formData, setFormData] = useState<IProfileData>({
-    username: '',
-    email: '',
-    password: '',
-    firstName: '',
-    lastName: '',
-    company: '',
-    website: '',
-    title: '',
-    phone: '',
-    address: '',
-    city: '',
-    zip: '',
-    region: '',
-    country: '',
-    category: '',
-    masterHTML: '',
-    isCatLocked: false,
+  const { activeProfileId, updateProfile } = useProfiles();
+
+  // 1. Load data
+  const { formData: loadedFormData, isCatLocked: loadedIsCatLocked, isLoading, refresh } =
+    useProfileLoad(activeProfileId);
+
+  // 2. Manage local state
+  const {
+    formData,
+    isCatLocked,
+    updateField,
+    toggleCategoryLock,
+    syncExternalData,
+  } = useProfileFormState(loadedFormData, loadedIsCatLocked);
+
+  // 3. Save immediately when local state changes
+  const { saveChanges } = useProfileSave({
+    activeProfileId,
+    formData,
+    isCatLocked,
+    updateProfile,
   });
-  const [isCatLocked, setIsCatLocked] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const autoSaveTimer = useRef<NodeJS.Timeout | null>(null);
 
-  // Load profile data when active profile changes
-  const loadProfileData = useCallback(async () => {
-    if (!activeProfileId) {
-      setFormData({
-        username: '',
-        email: '',
-        password: '',
-        firstName: '',
-        lastName: '',
-        company: '',
-        website: '',
-        title: '',
-        phone: '',
-        address: '',
-        city: '',
-        zip: '',
-        region: '',
-        country: '',
-        category: '',
-        masterHTML: '',
-        isCatLocked: false,
-      });
-      setIsCatLocked(false);
-      return;
-    }
-
-    try {
-      const flatData = await getFlattenedProfileData();
-      if (flatData) {
-        setFormData({
-          username: flatData.username || '',
-          email: flatData.email || '',
-          password: flatData.password || '',
-          firstName: flatData.firstName || '',
-          lastName: flatData.lastName || '',
-          company: flatData.company || '',
-          website: flatData.website || '',
-          title: flatData.title || '',
-          phone: flatData.phone || '',
-          address: flatData.address || '',
-          city: flatData.city || '',
-          zip: flatData.zip || '',
-          region: flatData.region || '',
-          country: flatData.country || '',
-          category: flatData.category || '',
-          masterHTML: flatData.masterHTML || '',
-          isCatLocked: flatData.isCatLocked === true,
-        });
-        setIsCatLocked(flatData.isCatLocked === true);
-      }
-    } catch (err) {
-      handleError('useProfileForm.loadProfileData', err, 'Failed to load profile data');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [activeProfileId]);
-
-  // Refresh when active profile changes or profiles list refreshes
+  // Sync external data (from load) into local state
   useEffect(() => {
-    loadProfileData();
-  }, [loadProfileData, refreshProfiles]);
+    syncExternalData(loadedFormData, loadedIsCatLocked);
+  }, [loadedFormData, loadedIsCatLocked, syncExternalData]);
 
-  // Auto-save changes
-  const saveChanges = useCallback(async () => {
-    if (!activeProfileId) return;
-    try {
-      await updateProfile(activeProfileId, {
-        data: {
-          ...formData,
-          isCatLocked,
-        },
-      });
-    } catch (err) {
-      handleError('useProfileForm.saveChanges', err, 'Failed to save profile');
-    }
-  }, [activeProfileId, formData, isCatLocked, updateProfile]);
-
-  const debouncedSave = useCallback(() => {
-    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
-    autoSaveTimer.current = setTimeout(() => {
+  // Save whenever local state changes (immediate, no debounce)
+  useEffect(() => {
+    // Avoid saving on initial mount before data is loaded
+    if (!isLoading && activeProfileId) {
       saveChanges();
-    }, 500);
-  }, [saveChanges]);
+    }
+  }, [formData, isCatLocked, isLoading, activeProfileId, saveChanges]);
 
-  const updateField = useCallback((field: keyof IProfileData, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-    debouncedSave();
-  }, [debouncedSave]);
-
-  const toggleCategoryLock = useCallback(() => {
-    setIsCatLocked(prev => !prev);
-    debouncedSave();
-  }, [debouncedSave]);
-
-  const refresh = useCallback(async () => {
-    setIsLoading(true);
-    await loadProfileData();
-  }, [loadProfileData]);
-
-return {
-  formData,
-  isCatLocked,
-  isLoading,
-  activeProfileId,   // <-- add this
-  updateField,
-  toggleCategoryLock,
-  refresh,
-};
+  return {
+    formData,
+    isCatLocked,
+    isLoading,
+    activeProfileId,
+    updateField,
+    toggleCategoryLock,
+    refresh,
+  };
 }
